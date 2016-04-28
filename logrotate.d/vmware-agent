@@ -1,4 +1,4 @@
-/var/log/vmware-agent.log {
+/var/log/vmware-agent/* {
   daily
   missingok
   notifempty

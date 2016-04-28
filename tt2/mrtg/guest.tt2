@@ -49,6 +49,7 @@ routers.cgi*InSummary[[% fqdn %]-[% rrdfiles.guests.resources %]]: yes
 routers.cgi*ThreshMaxI[[% fqdn %]-[% rrdfiles.guests.resources %]]: [% config.nagios.thresh_cpu_crit %]
 routers.cgi*ThreshMaxO[[% fqdn %]-[% rrdfiles.guests.resources %]]: [% config.nagios.thresh_mem_crit %]
 [% END %]
+routers.cgi*Summary[[% fqdn %]-[% rrdfiles.guests.resources %]]: VMware
 
 # CPU
 [% IF config.mrtg.guest_included %]routers.cgi*[% END %]Target[[% fqdn %]-[% rrdfiles.guests.cpu1 %]]: dummy
@@ -106,6 +107,7 @@ routers.cgi*GraphStyle[[% fqdn %]-[% rrdfiles.guests.cpu %]]: stack
 routers.cgi*Legend1[[% fqdn %]-[% rrdfiles.guests.cpu %]]: CPU time consumed
 routers.cgi*Legend1T[[% fqdn %]-[% rrdfiles.guests.cpu %]]: Total CPU time consumed
 routers.cgi*LegendI[[% fqdn %]-[% rrdfiles.guests.cpu %]]: cpu:
+routers.cgi*Sumary[[% fqdn %]-[% rrdfiles.guests.cpu %]]: VMware
 
 
 # Memory
@@ -164,6 +166,7 @@ routers.cgi*InSummary[[% fqdn %]-[% rrdfiles.guests.mem %]]: yes
 routers.cgi*GraphStyle[[% fqdn %]-[% rrdfiles.guests.mem %]]: stack
 routers.cgi*LegendTI[[% fqdn %]-[% rrdfiles.guests.mem %]]: Total memory used
 routers.cgi*LegendI[[% fqdn %]-[% rrdfiles.guests.mem %]]: used:
+routers.cgi*Summary[[% fqdn %]-[% rrdfiles.guests.mem %]]: VMware
 
 # Active
 [% IF config.mrtg.guest_included %]routers.cgi*[% END %]Target[[% fqdn %]-[% rrdfiles.guests.memory %]]: dummy
@@ -185,6 +188,7 @@ routers.cgi*Icon[[% fqdn %]-[% rrdfiles.guests.memory %]]: chip-sm.gif
 routers.cgi*InMenu[[% fqdn %]-[% rrdfiles.guests.memory %]]: yes
 routers.cgi*InCompact[[% fqdn %]-[% rrdfiles.guests.memory %]]: yes
 routers.cgi*InSummary[[% fqdn %]-[% rrdfiles.guests.memory %]]: yes
+routers.cgi*Summary[[% fqdn %]-[% rrdfiles.guests.memory %]]: VMware
 
 # Network usage
 [% IF config.mrtg.guest_included %]routers.cgi*[% END %]Target[[% fqdn %]-[% rrdfiles.guests.network %]]: dummy
@@ -202,6 +206,7 @@ routers.cgi*Icon[[% fqdn %]-[% rrdfiles.guests.network %]]: interface-sm.gif
 routers.cgi*InMenu[[% fqdn %]-[% rrdfiles.guests.network %]]: yes
 routers.cgi*InSummary[[% fqdn %]-[% rrdfiles.guests.network %]]: yes
 routers.cgi*Options[[% fqdn %]-[% rrdfiles.guests.network %]]: nopercent nomax
+routers.cgi*Summary[[% fqdn %]-[% rrdfiles.guests.network %]]: VMware
 
 [% IF config.guests.network %]
 # Individual network interfaces
@@ -234,12 +239,13 @@ routers.cgi*GraphStyle[[% name %]-network]: mirror
 routers.cgi*InMenu[[% name %]-network]: yes
 routers.cgi*InSummary[[% name %]-network]: yes
 routers.cgi*Icon[[% name %]-network]: interface-sm.gif
+routers.cgi*Summary[[% name %]-network]: VMware
 [% END %] 
 [% END %] 
 
 # Disk usage
 [% IF config.mrtg.guest_included %]routers.cgi*[% END %]Target[[% fqdn %]-[% rrdfiles.guests.disk %]]: dummy
-[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Title[[% fqdn %]-[% rrdfiles.guests.disk %]]: [% name %] Disk Activity
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Title[[% fqdn %]-[% rrdfiles.guests.disk %]]: [% name %] Total Disk Activity 
 [% IF config.mrtg.guest_included %]routers.cgi*[% END %]PageTop[[% fqdn %]-[% rrdfiles.guests.disk %]]: null
 [% IF config.mrtg.guest_included %]routers.cgi*[% END %]MaxBytes[[% fqdn %]-[% rrdfiles.guests.disk %]]: 12800000000
 [% IF config.mrtg.guest_included %]routers.cgi*[% END %]LegendI[[% fqdn %]-[% rrdfiles.guests.disk %]]: total:
@@ -250,9 +256,11 @@ routers.cgi*Icon[[% name %]-network]: interface-sm.gif
 [% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend3[[% fqdn %]-[% rrdfiles.guests.disk %]]: Peak Usage
 routers.cgi*ShortDesc[[% fqdn %]-[% rrdfiles.guests.disk %]]: VM: vDisk
 routers.cgi*Icon[[% fqdn %]-[% rrdfiles.guests.disk %]]: disk-sm.gif
-routers.cgi*InMenu[[% fqdn %]-[% rrdfiles.guests.disk %]]: yes
+routers.cgi*InMenu[[% fqdn %]-[% rrdfiles.guests.disk %]]: no
 routers.cgi*InSummary[[% fqdn %]-[% rrdfiles.guests.disk %]]: yes
+routers.cgi*Summary[[% fqdn %]-[% rrdfiles.guests.disk %]]: [% name %]-vDisk
 routers.cgi*Options[[% fqdn %]-[% rrdfiles.guests.disk %]]: nopercent nomax
+routers.cgi*Summary[[% fqdn %]-[% rrdfiles.guests.disk %]]: VMware
 
 [% IF config.guests.datastores %]
 # Individual disks
@@ -277,6 +285,7 @@ routers.cgi*InMenu[[% fqdn %]-[% rrdfiles.guests.disk %]-[% dsk %]]: no
 routers.cgi*InSummary[[% fqdn %]-[% rrdfiles.guests.disk %]-[% dsk %]]: no
 routers.cgi*InCompact[[% fqdn %]-[% rrdfiles.guests.disk %]-[% dsk %]]: no
 routers.cgi*Options[[% fqdn %]-[% rrdfiles.guests.disk %]-[% dsk %]]: nopercent nomax
+
 # Latency: threshold config.nagios.thresh_latency_crit
 [% IF config.mrtg.guest_included %]routers.cgi*[% END %]Target[[% fqdn %]-[% rrdfiles.guests.latency %]-[% dsk %]]: dummy
 [% IF config.mrtg.guest_included %]routers.cgi*[% END %]Title[[% fqdn %]-[% rrdfiles.guests.latency %]-[% dsk %]]: [% desc.$dsk %] Latency
@@ -306,28 +315,45 @@ routers.cgi*ThreshMaxO[[% fqdn %]-[% rrdfiles.guests.latency %]-[% dsk %]]: [% l
 [% END %] 
 [% IF disks %]
 # I/O summary - mirror graph
-routers.cgi*Title[[% name %]-disk]: Disk Activity
+routers.cgi*Title[[% name %]-disk]: [% name %] Disk Activity Detail
 routers.cgi*ShortDesc[[% name %]-disk]: VM: vDisk: Detail
 routers.cgi*GraphStyle[[% name %]-disk]: mirror
-routers.cgi*InMenu[[% name %]-disk]: yes
+routers.cgi*InMenu[[% name %]-disk]: no
 routers.cgi*InSummary[[% name %]-disk]: yes
+routers.cgi*Summary[[% name %]-disk]: [% name %]-vDisk
+routers.cgi*Summary[[% name %]-disk]: VMware
 routers.cgi*Icon[[% name %]-disk]: disk-sm.gif
 # Latency summary
-routers.cgi*Title[[% name %]-latency]: Disk Latency
+routers.cgi*Title[[% name %]-latency]: [% name %] Disk Latency Detail
 routers.cgi*ShortDesc[[% name %]-latency]: VM: vDisk: Latency
 routers.cgi*GraphStyle[[% name %]-latency]: mirror
-routers.cgi*InMenu[[% name %]-latency]: yes
+routers.cgi*InMenu[[% name %]-latency]: no
 routers.cgi*InSummary[[% name %]-latency]: yes
+routers.cgi*Summary[[% name %]-latency]: [% name %]-vDisk
+routers.cgi*Summary[[% name %]-latency]: VMware
 routers.cgi*Icon[[% name %]-latency]: clock-sm.gif
 [% IF config.mrtg.thresholds %]
 [% latency_crit = config.nagios.thresh_latency_crit / 1000 %]
 routers.cgi*ThreshMaxI[[% name %]-latency]: [% latency_crit %]
 routers.cgi*ThreshMaxO[[% name %]-latency]: [% latency_crit %]
+routers.cgi*HRule[[% name %]-latency]: [% latency_crit %] "Read Alert Threshold" #ff4444
+routers.cgi*HRule[[% name %]-latency]: -[% latency_crit %] "Write Alert Threshold" #ff4444
 [% END %] 
 [% END %]  #disks
 
 [% END %]  # datastores
 
+# Virtual disk graphs summary page
+routers.cgi*Title[[% name %]-vDisk]: Virtual Disk Graphs
+routers.cgi*ShortDesc[[% name %]-vDisk]: VM: vDisk
+routers.cgi*Icon[[% name %]-vDisk]: disk-sm.gif
+
+# VMware summary page
+routers.cgi*Title[VMware]: VMware graphs
+routers.cgi*ShortDesc[VMware]: VMware
+routers.cgi*Icon[VMware]: vmware-sm.gif
+
+# Crosslinks
 [% IF config.mrtg.base_dir %]
 [% IF host and config.global.hosts %]
 routers.cgi*Link: "ESX Host ([% host %])" [% config.mrtg.cfg_host.remove( config.mrtg.base_dir _ '/' ) %]/[% host %].cfg [% host %]-[% rrdfiles.hosts.resources %] vmware-sm.gif

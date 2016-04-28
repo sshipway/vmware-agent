@@ -4,12 +4,13 @@
 use strict;
 use VMware::VIRuntime;
 use VMware::VILib;
+use Getopt::Std;
 
 ##########################################################################
 # Other configurable options
-my($SERVER)='itsvcsprd01.uoa.auckland.ac.nz';
-my($USER)='UOA\\nagiosvc-prod';
-my($PASS)='startprod@08';
+my($SERVER)='virtualcentre.mycompany.com';
+my($USER)='vcusername';
+my($PASS)='vcpassword';
 my($TIMEOUT)=5;    # response time in secods
 my($DEBUG)=1;
 
@@ -30,18 +31,45 @@ $|=1;
 $SIG{CHLD} = sub { print "SIGCHLD\n" if($DEBUG); };
 
 #########################################################################
+sub loadconfig {
+	my($file) = $_[0];
+	my($line,$sec);
+	if(! -f $file) {
+		print "$file not found.\n";
+		return;
+	}
+	open CFG,"<$file" or do {
+		print "$file: $!\n";
+		exit 1;
+	};
+	while( $line = <CFG> ) {
+		chomp $line;
+		if( $line =~ /^\s*\[(\S+)\]/ ) { $sec = $1; next; }
+		next if($sec ne 'vmware');
+		if($line =~ /^\s*(\S+)\s*=\s*(\S.*)/ ) {
+			$SERVER=$2 if($1 eq 'SERVER');
+			$USER=$2 if($1 eq 'USERNAME');
+			$PASS=$2 if($1 eq 'PASSWORD');
+		}
+	}
+	close CFG;
+	$USER =~ s/\\\\/\\/;
+}
+#########################################################################
+sub byid { return ($a->key <=> $b->key); }
 sub getcounters($$) {
 	my($type) = $_[0];
 	my($show)=$_[1];
 	# we need to identify which counter is which
 	my $perfCounterInfo = $perfmgr->perfCounter;
-	print "Identifying perfcounter IDs\n" if($DEBUG>1);
-	foreach ( @$perfCounterInfo ) {
+	print "Identifying perfcounter IDs\n" if($DEBUG);
+	print "Matching /$type/\n" if($type and $DEBUG);
+	foreach ( sort byid @$perfCounterInfo ) {
 		my($rollup) = $_->rollupType->val;
 		my($name) = $_->groupInfo->key.":".$_->nameInfo->key;
 		my($id) = $_->key;
-		print "  $name ($rollup)\n" if($show);
-		#next if($_->groupInfo->key !~ /$type/); # optimise
+		next if($type and $_->groupInfo->key !~ /$type/); # optimise
+		print "  $name ($rollup) [$id]\n" if($show);
 		if($rollup =~ /none|average|summation|latest/) {
 			$perfkeys{$name}=$_->key;
 			$perfkeys{"$name:$rollup"}=$id;
@@ -149,7 +177,9 @@ sub getdata($$$) {
 		next if($nval<0);
 		print "Perfdata object: ".$time_stamps->[$nval]->timestamp."\n" if($DEBUG);
 		foreach my $v (@$values) {
-			print "* ".$perfkeys{$v->id->counterId}."=".$v->value->[$nval]."\n";
+			print "* ".$perfkeys{$v->id->counterId}
+				.($instance?":$instance":"")
+				." = ".$v->value->[$nval]."\n";
 			$rcount{$v->id->counterId} += 1;
 			$results{$v->id->counterId} += $v->value->[$nval];
 		}
@@ -157,30 +187,42 @@ sub getdata($$$) {
 	}
 }
 
-#########################################################################
-# MAIN
-
-print "Starting.\n" if($DEBUG);
-
-my($gu) = $ARGV[0];
-my($var) = $ARGV[1];
-
-if(!$gu) {
+sub dohelp {
+	print "vmware-test [-h][-d][-c cfgfile] -g guest [-o object [-i instance]]\n";
 	print "Must give a guest name\n";
-	print "Usage: vmware-test.pl guest counter [instance]\n";
 	print "guest can be hostname or IP address\n";
-	print "Omit counter to get a list of possible counters.\n";
+	print "Omit counter object to get a list of possible counters.\n";
 	print "Some counters have instances (eg, CPU) and some dont.\n";
 	print "CPU instances are 1...ncpu, net instances are device number (try 2000 up)\n";
 	print "Disk instances are of the form scsi0:1 for bus 0, ID 1.\n";
 	exit 1;
+}
+#########################################################################
+# MAIN
+my($gu,$var);
+my(%opts);
+
+print "Starting.\n" if($DEBUG);
+
+getopts('hc:dg:o:i:',\%opts);
+$gu = $opts{g} if($opts{g});
+$var= $opts{o} if($opts{o});
+$DEBUG=1 if( $opts{d} );
+$gu = shift @ARGV if(!$gu and $ARGV[0]);
+$var = shift @ARGV if(!$var and $ARGV[0]);
+
+if(!$gu or $opts{h}) {
+	dohelp;
+}
+if( $opts{c} ) {
+	loadconfig($opts{c});
 }
 
     $vmware = Vim->new(
         service_url => 'https://'.$SERVER.'/sdk/vimService.wsdl',
     );
 
-	print "Connecting\n" if($DEBUG);
+	print "Connecting to '$SERVER' as '$USER'\n" if($DEBUG);
     eval {
         alarm( 10 );
         $vmware->login(
@@ -199,9 +241,9 @@ if(!$gu) {
     $sc_view = $vmware->get_service_content();
     $perfmgr = $vmware->get_view(mo_ref=>$sc_view->perfManager);
 
-if(!$var) {
+if(!$var or $var!~/:/) {
 	print "Must give a var name ( try cpu:usage )\n";
-	getcounters('',1);
+	getcounters($var,1);
 	exit 1;
 }
 
@@ -254,10 +296,10 @@ if(!$var) {
 		exit 1;
 	}
 
-if($ARGV[2]) {
-getdata($vm,$var,$ARGV[2]);
+if($opts{i}) {
+	getdata($vm,$var,$opts{i});
 }else {
-getdata($vm,$var,'');
+	getdata($vm,$var,'');
 }
 
 # Now disconnect from VI

@@ -3,7 +3,7 @@
 [% DEFAULT notifytime = '24x7' %]
 [% DEFAULT contactgroups = 'vmware-admins' %]
 [% DEFAULT servicegroup = 'vmware' %]
-[% SET freshness = config.global.frequency * 2 %]
+[% SET freshness = config.global.frequency * 4 %]
 [% SET attempts = 1 %]
 
 [% IF config.nagios.guest_with_host %]
@@ -104,45 +104,64 @@ define host {
     action_url              [% config.nagios.pnp_svc_action_url %]
   [% END %]
 [% END %]
+[% BLOCK dependency %]
+[% IF config.nagios.vchost AND config.nagios.vcservice %]
+define servicedependency{
+       host_name                       [% config.nagios.vchost %]
+       service_description             [% config.nagios.vcservice %]
+       dependent_host_name             [% name %]
+       dependent_service_description   [% svc %]
+       execution_failure_criteria      u,c
+       notification_failure_criteria   u,c
+}
+[% END %]
+[% END %]
 
 # Check status
-define service {
-    service_description  [% servicedesc.guests.status %]
-[% INCLUDE common %]
-}
+#define service {
+#    service_description  [% servicedesc.guests.status %]
+#[ % INCLUDE common %]
+#}
+#[ % INCLUDE dependency svc=servicedesc.guests.status %]
 # Check alarms
 define service {
     service_description  [% servicedesc.guests.alarms %]
 [% INCLUDE common %]
 }
+[% INCLUDE dependency svc=servicedesc.guests.alarms %]
 # Check memory
 define service {
     service_description  [% servicedesc.guests.memory %]
 [% INCLUDE common attempts=3 %]
 [% INCLUDE pnp %]
 }
+[% INCLUDE dependency svc=servicedesc.guests.memory %]
 # Check CPU
 define service {
     service_description  [% servicedesc.guests.cpu %]
 [% INCLUDE common attempts=3 %]
 [% INCLUDE pnp %]
 }
+[% INCLUDE dependency svc=servicedesc.guests.cpu %]
 # Check network
 define service {
     service_description  [% servicedesc.guests.net %]
 [% INCLUDE common %]
 [% INCLUDE pnp %]
 }
+[% INCLUDE dependency svc=servicedesc.guests.net %]
 # check disk
 define service {
     service_description  [% servicedesc.guests.disk %]
 [% INCLUDE common %]
 [% INCLUDE pnp %]
 }
+[% INCLUDE dependency svc=servicedesc.guests.disk %]
 # Information
 define service {
     service_description  [% servicedesc.guests.info %]
 [% INCLUDE common %]
 }
+[% INCLUDE dependency svc=servicedesc.guests.info %]
 
 

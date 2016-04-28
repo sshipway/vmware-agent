@@ -77,18 +77,25 @@ routers.cgi*InCompact[[% name %]-[% rrdfiles.clusters.datastores %]]: yes
 routers.cgi*InSummary[[% name %]-[% rrdfiles.clusters.datastores %]]: yes
 
 # Fairness
+# This is expressed as a standard deviation of the values within the
+# cluster.  The API provides this figure x100 so we have to use Factor to
+# divide it back down (probably we should have stored it pre-divided?)
+# The Target is a target maximal value for this standard deviation.  The DRS
+# should move guests between cluster hosts until the Std Dev value is less
+# than the target - this may take 15min or more to achieve after a new guest 
+# is added to the cluster.
 Target[[% name %]-[% rrdfiles.clusters.fairness %]]: dummy
-Title[[% name %]-[% rrdfiles.clusters.fairness %]]: [% this.name %] Balance
-MaxBytes[[% name %]-[% rrdfiles.clusters.fairness %]]: 100000
+Title[[% name %]-[% rrdfiles.clusters.fairness %]]: [% this.name %] Cluster DRS Balance
+MaxBytes[[% name %]-[% rrdfiles.clusters.fairness %]]: 10
 PageTop[[% name %]-[% rrdfiles.clusters.fairness %]]: null
-LegendI[[% name %]-[% rrdfiles.clusters.fairness %]]: balance:
-LegendO[[% name %]-[% rrdfiles.clusters.fairness %]]: target :
+LegendI[[% name %]-[% rrdfiles.clusters.fairness %]]: stddev:
+LegendO[[% name %]-[% rrdfiles.clusters.fairness %]]: target:
 Options[[% name %]-[% rrdfiles.clusters.fairness %]]: gauge growright nomax
-Ylegend[[% name %]-[% rrdfiles.clusters.fairness %]]: Balance
+Ylegend[[% name %]-[% rrdfiles.clusters.fairness %]]: Std Deviation
 ShortLegend[[% name %]-[% rrdfiles.clusters.fairness %]]: &nbsp;
 WithPeak[[% name %]-[% rrdfiles.clusters.fairness %]]: none
-Legend1[[% name %]-[% rrdfiles.clusters.fairness %]]: Fairness
-Legend2[[% name %]-[% rrdfiles.clusters.fairness %]]: Target
+Legend1[[% name %]-[% rrdfiles.clusters.fairness %]]: Standard Deviation
+Legend2[[% name %]-[% rrdfiles.clusters.fairness %]]: Target Max Deviation
 routers.cgi*ShortDesc[[% name %]-[% rrdfiles.clusters.fairness %]]: VMware: Balance 
 routers.cgi*Options[[% name %]-[% rrdfiles.clusters.fairness %]]: fixunit nototal nopercent nomax
 routers.cgi*Icon[[% name %]-[% rrdfiles.clusters.fairness %]]: target-sm.gif

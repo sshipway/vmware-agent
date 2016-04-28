@@ -2,7 +2,7 @@
 # vim:ts=4
 #
 # vmware-agent.pl
-# Version 0.12 : Steve Shipway, The University of Auckland
+# Version 0.2 : Steve Shipway, The University of Auckland
 #
 # This script collects data from vmware API and passes on to configured
 # output; usually, Nagios and MRTG
@@ -31,19 +31,8 @@
 ##########################################################################
 # Version history
 # 0.1 First working: all graphs and Services for dc/cluster/host/guest
-# 0.2 Many fixes to various templates.  Added Info service.  Thresholds.
-# 0.3 Implemented.  Fixed problem with balance calculations. Disk usage detail
-# 0.4 INCLUDE statement in cfg file.  Autoreload of cfg file on changes
-# 0.5 Cluster memory percentage calc fixed.  Explicit name maps. Allow disable
-#     balance crit threshold with -1
-# 0.6 Add alarm_exclude option
-# 0.7 Fix cluster CPU calculations
-# 0.8 Allow global.heartbeat to be set, default heartbeat higher.
-# 0.9 Fix host swap in thresholds to use correct configuration value
-# 0.10 Stash objects called 'time' no longer work in TT2, renamed to timesvc
-# 0.11 Fix problem with older hosts not returning cpu max perf data
-#      Add guests:match regexp
-# 0.12 Restrict DNS lookups
+# 0.2 Threading model
+#
 ##########################################################################
 
 use strict;
@@ -55,12 +44,11 @@ use IO::Socket;
 use Data::Dumper; # for debug
 use Cwd;
 use POSIX "setsid";
-use File::Basename;
-use FileHandle;
-use HTTP::Message 5.832;
+use threads;
+use threads::shared;
 
-##########################################################################
-my($VERSION) = "0.12";
+my($VERSION) = "0.2";
+
 ##########################################################################
 my($CFGFILE) = "vmware-agent.cfg"; # searched in $bin, $cwd, $bin/../etc, /etc, /usr/local/etc ..
 my(%config)=();
@@ -72,6 +60,7 @@ my($livestatuserr) = 0;
 my($nscaerr) = 0;
 my($duplivestatuserr) = 0;
 my($vmware) = 0;
+my(@vmware) = ();
 my(%ntp) = ();
 my($has_naglog, $has_syslog, $has_logfile) = (0,0,0);
 my($start,$delay);
@@ -112,14 +101,11 @@ my(%perfkeys) = ();
 	 'thresh_latency_crit' =>  50, # msec
 	 'canonicalise'    =>  1,
 	 'tolower'         =>  1,
-	 'enable'	   =>  0,
-	 'cfg'		   =>  0,
+	 'enable'		   =>  0,
+	 'cfg'			   =>  0,
 	 'verify'          =>  1, 
-	 'log_warn'        =>  1,
-     	 'verify_warning'  =>  1,
+     'verify_warning'  =>  1,
 	 'ntp'             => 'never',
-         'agent_host_checks'=> 1,
-         'guest_with_host' =>  1,
 	},
 	mrtg => {
 	 'cfgheader'         => '',
@@ -162,7 +148,6 @@ my(%perfkeys) = ();
 		datastore => 'VMware: Datastore',
 		status => 'VMware: Status',
 		'time' => 'VMware: Time Sync',
-		'timesvc' => 'VMware: Time Sync',
 		fairness => 'VMware: Balance',
 		disk   => 'VMware: Disk',
 		net    => 'VMware: Network',
@@ -236,12 +221,8 @@ my(%mapstatus) = (
 
 $|=1;
 $Util::script_version = $VERSION;
-$SIG{CHLD} = sub { print "SIGCHLD (ignored)\n" if($DEBUG); };
+$SIG{CHLD} = sub { print "SIGCHLD\n" if($DEBUG); };
 $SIG{ALRM} = sub { die('TIMEOUT'); };
-$SIG{HUP} = sub { print "SIGHUP (ignored)\n" if($DEBUG); };
-$SIG{INT} = sub { die('SIGINT'); };
-$SIG{PIPE} = sub { print "SIGPIPE (ignored)\n" if($DEBUG); };
-$SIG{TERM} = sub { die('SIGTERM'); };
 
 # predefines
 sub send_nagios_status($$$$);
@@ -279,35 +260,33 @@ sub do_log($$) {
 			$config{'nagios'}{'log_servicedesc'},
 			$naglvl,
 			$msg
-		) if( ($naglvl!=1) or $config{'nagios'}{'log_warn'} );
+		);
 	}
 }
 ##################################
 # Config file
-sub readconfig($$) {
-	my($filename,$section) = @_;
+sub readconfig() {
 	my($line);
+	my($section) = '';
 	my($key,$val);
-	my($cfg);
-	if( $filename !~ /^\// ) {
+	if( $CFGFILE !~ /^\// ) {
 		foreach my $p ( $Bin, $Bin."/../etc", '/etc','/usr/local/etc','/etc/nagios','/usr/local/nagios/etc','/opt/nagios/etc', cwd() ) {
-			if( -r "$p/$filename" ) {
-				$filename = "$p/$filename";
+			if( -r "$p/$CFGFILE" ) {
+				$CFGFILE = "$p/$CFGFILE";
 				last;
 			}
 		}
 	}
-	print "Reading configuration file $filename\n" if($DEBUG);
-	if( ! -r $filename ) {
-		print "Unable to open configuration file '$filename'\n";
+	print "Reading configuration file $CFGFILE\n" if($DEBUG);
+	if( ! -r $CFGFILE ) {
+		print "Unable to open configuration file '$CFGFILE'\n";
 		exit 3;
 	}
-	$cfg = new FileHandle;
-	open $cfg, "<$filename" or do {
-		print "Unable to read configuration file '$filename'\n$!\n";
+	open CFG, "<$CFGFILE" or do {
+		print "Unable to read configuration file '$CFGFILE'\n$!\n";
 		exit 3;
 	};
-	while( defined ($line = <$cfg>) ) {
+	while( defined ($line = <CFG>) ) {
 		next if ( $line =~ /^\s*#/ );
 		next if ( $line =~ /^\s*$/ );
 		if ( $line =~ /^\s*\[(\S+)\]/ ) { 
@@ -315,14 +294,6 @@ sub readconfig($$) {
 			print "Section [$section] starts...\n" if($DEBUG);
 			$config{$section}={} if(!defined $config{$section});
 			next; 
-		}
-		if ( $line =~ /^\s*%?INCLUDE\s+(\S+)\s*$/i ) {
-			my($f) = $1;
-			$f = dirname($filename)."/$f" if($f !~ /^\//);
-			print "Including config file $f ...\n" if($DEBUG);
-			readconfig($f,$section);
-			print "Continuing after include...\n" if($DEBUG);
-			next;
 		}
 		if ( !$section ) {
 			print "No section defined at line '$line'\n";
@@ -355,7 +326,7 @@ sub readconfig($$) {
 		}
 	}
 	print "Configuration file read in.\n" if($DEBUG);
-	close $cfg;
+	close CFG;
 }
 ###############################
 # TT2
@@ -400,75 +371,36 @@ sub vmware_disconnect() {
 }
 sub vmware_connect() {
 	my($s) = "";
-	my($rv) = 0;
-	my($msg);
+	my($haserr) = 0;
+	my($isok) = 0;
+
 	eval { 
 		alarm( $config{'global'}{'timeout'} );
-		$rv = $vmware->login( 
+		$vmware->login( 
 			user_name => $config{'vmware'}{'username'},
 			password => $config{'vmware'}{'password'},
 		);
 		alarm(0);
 	};
-	alarm(0);
-	return if(!$@); # all OK
-
-	$msg = "Unable to authenticate to Virtual Centre server as ".$config{vmware}{username};
-	$msg =~ s/\\/\\\\/g;
-	do_log(0, "$msg\nERROR: $@");
-
-	if($config{'global'}{'backupserver'} ) {
-		# Try alternative server?
-		$s = $config{'vmware'}{'backupserver'};
-		if( $vmware->{service_url} =~ /\/$s\// ) { $s = $config{'vmware'}{'server'}; }
-		do_log(2, "Trying alternative connect to $s as ".$config{vmware}{username});
-	
-		$vmware = Vim->new( server=>$s, protocol=>"https" ,
-			service_url => "https://$s/sdk/vimService.wsdl"
-		);
-		if(!$vmware) {
-			do_log(0, "Unable to create Virtual Centre server object for ".$config{'vmware'}{'server'});
-			exit 1;
-		}
-		eval { 
-			alarm( $config{'global'}{'timeout'} );
-			$rv = $vmware->login( 
-				user_name => $config{'vmware'}{'username'},
-				password => $config{'vmware'}{'password'},
-			);
-			alarm(0);
-		};
-		alarm(0);
-		return if(!$@); # all OK
-		$msg = "Unable to authenticate to Virtual Centre server as ".$config{vmware}{username};
-		$msg =~ s/\\/\\\\/g;
-		do_log(0, "$msg\nERROR: $@");
-	}
+	if($@) {
+		do_log(0, "Unable to authenticate to Virtual Centre server as ".$config{vmware}{username}."\nERROR: $@");
+	} else { return 0; }
 
 	if( $config{'global'}{'daemon'} ) {
 		do_log(0, "Sleeping 60s, then continuing");
 		# Why is eval necessary? Because sleep() uses SIGALRM.
 		eval { sleep(60); };
-		return;
 	} else {
-		do_log(0, "Exiting due to VMware connect failure");
 		exit 1;
 	}
-
+	return 1;
 }
 # Obtain nagios thresholds for a given item
-sub threshold($$$$) {
-	my($thresh,$type,$sections,$id) = @_;
-	my($key);
+sub threshold($$@) {
+	my($thresh,$type,@sections) = @_;
+	my($key) = "thresh_${thresh}_${type}";
 
-	if($id) {
-		$key = "thresh_${thresh}_${id}_${type}";
-		foreach ( @$sections ) {
-			return( $config{$_}{$key} ) if($config{$_}{$key});
-		}
-	}
-	$key = "thresh_${thresh}_${type}";
-	foreach ( @$sections ) {
+	foreach ( @sections ) {
 		return( $config{$_}{$key} ) if($config{$_}{$key});
 	}
 
@@ -490,6 +422,7 @@ sub devdesc($$) {
 sub getcounters($) {
     my($type) = $_[0];
     # we need to identify which counter is which
+
     my $perfCounterInfo = $perfmgr->perfCounter;
     do_log(2,"Identifying perfcounter IDs");
     foreach ( @$perfCounterInfo ) {
@@ -553,7 +486,7 @@ sub runquery($) {
 
 sub initialise() {
 	my $rv;
-	readconfig($CFGFILE,'');
+	readconfig();
 	foreach my $opt ( @ARGV ) {
 		if( $opt =~ /--(\S+):(\S+)=(.*)/ ) {
 			$config{$1}{$2} = $3;
@@ -661,10 +594,9 @@ sub initialise() {
 				do_log(0, "Unable to connect to livestatus service on "
 					.$config{'nagios'}{'livestatus'}."\n"
 					.$Monitoring::Livestatus::ErrorMessage);
-				$livestatus = 0;
-			} else {
-				do_log(3, "Nagios livestatus server has $count hosts in a running state");
+				exit 2;
 			}
+			do_log(3, "Nagios livestatus server has $count hosts in a running state");
 			if( $config{'nagios'}{'duplivestatus'} ) {
 				do_log(2,"Initialising duplicate Nagios connector to ".$config{'nagios'}{'duplivestatus'});
 				$duplivestatus = Monitoring::Livestatus->new(
@@ -675,7 +607,6 @@ sub initialise() {
 					do_log(0, "Unable to connect to duplicate livestatus service on "
 						.$config{'nagios'}{'duplivestatus'}."\n"
 						.$Monitoring::Livestatus::ErrorMessage);
-					$duplivestatus = 0;
 				}
 			}
 		}
@@ -754,33 +685,46 @@ sub initialise() {
 	
 	# Now connect to VMware, if we can
 	# Note we dont use Util::connect as this takes control of your ARGV :(
-	if( ! $config{'vmware'}{'server'} or ! $config{'vmware'}{'username'}
+	if( ! $config{'vmware'}{'servers'} or ! $config{'vmware'}{'username'}
 		or ! $config{'vmware'}{'password'} ) {
 		do_log(0, "Cannot connect to Virtual Centre: you must specify a server, username\nand password in the config file.");
 		exit 1;
 	}	
-	do_log(2, "Initialising VMware connector to ".$config{'vmware'}{'server'});
-	$vmware = Vim->new(
-		service_url => 'https://'.$config{'vmware'}{'server'}.'/sdk/vimService.wsdl',
-	);
-	if(!$vmware) {
-		do_log(0, "Unable to create Virtual Centre server object for ".$config{'vmware'}{'server'});
-		exit 1;
+	foreach my $vc ( split " ",$config{'vmware'}{'servers'} ) {
+		do_log(2, "Initialising VMware connector to $vc");
+		eval {
+			$vmware = Vim->new(
+				server => $vc,
+				protocol => 'https',
+				service_url => "https://$vc/sdk/vimService.wsdl",
+			);
+		};
+		if($@ or !$vmware) {
+			do_log(0, "Unable to create Virtual Centre server object for $vc: $@");
+			exit 1;
+		}
+		if(vmware_connect()) {
+			do_log(0, "Unable to connect to Virtual Centre server object for $vc");
+		} else { 
+			eval {
+				$si_view = $vmware->get_service_instance(); # only used here
+				do_log(2, "Virtual Centre Time on $vc: ". $si_view->CurrentTime());
+				$sc_view = $vmware->get_service_content();
+   				$perfmgr = $vmware->get_view(mo_ref=>$sc_view->perfManager);
+			};
+			if($@) {
+				do_log(0, "Unable to obtain perfmgr view for $vc: $@");
+			}
+			$vmware->{perfmgr} = $perfmgr;
+			$vmware->{hostname} = $vc;
+			push @vmware, $vmware;
+		}
 	}
-	vmware_connect();
-	$si_view = $vmware->get_service_instance();
-	do_log(2, "Virtual Centre Time : ". $si_view->CurrentTime());
-	$sc_view = $vmware->get_service_content();
-    $perfmgr = $vmware->get_view(mo_ref=>$sc_view->perfManager);
+	# just determine counters/interval from primary VC
+	$vmware = $vmware[0];
+	$perfmgr = $vmware->{perfmgr};
 	getinterval();
 	getcounters('cpu|net|virtualDisk|disk|mem'); # optimise: many are now in the quickstats
-
-	return if($DEBUG<4);
-	require Data::Dumper;
-	$Data::Dumper::Sortkeys = 1;
-	$Data::Dumper::Deepcopy = 1;
-	$Data::Dumper::Indent = 1; # fixed amount
-	print Dumper($si_view);
 
 }
 
@@ -827,7 +771,6 @@ sub find_entity_views {
 		$views =  $vmware->find_entity_views(%opts);
 		alarm(0);
 	};
-	alarm(0);
 	if($@) {
 		do_log(0,"Error querying vmware API: $@");
 		vmware_disconnect();
@@ -974,7 +917,6 @@ sub clear_data() {
 	%cfghosts = ();
 }
 sub fetch_data() {
-	clear_data();
 	do_log(2,"Fetching VMware data");
 	if( $config{'global'}{'datacenters'} ) {
 		do_log(3,"Fetching VMware datacentre data");
@@ -1118,15 +1060,7 @@ sub fetch_data() {
 	if( $config{'global'}{'guests'} ) {
 		my $qstart;
 		do_log(3,"Fetching VMware guest data");
-		if( $config{'guests'}{'match'} ) {
-			$guests = find_entity_views(view_type=>'VirtualMachine',
-				filter=> {
-					name=> qr/$config{'guests'}{'match'}/
-				}
-			);
-		} else {
-			$guests = find_entity_views(view_type=>'VirtualMachine');
-		}
+		$guests = find_entity_views(view_type=>'VirtualMachine');
 		if(!$guests) {
 			vmware_disconnect();
 			vmware_connect();
@@ -1232,13 +1166,6 @@ sub fetch_data() {
         }
 		# Now we have to run the queries
 		do_log(3,"Running VMware guest perf counter queries");
-		if($DEBUG>1) {
-			foreach my $q ( @queries ) {
-				foreach my $i ( @{$q->{metricId}} ) {
-					do_log(3,"Q: ".$q->{entity}{mo_ref}{value}.": ".$i->{counterId}."\n");
-				}
-			}
-		}
 		$qstart = time;
 		my $perfdata = runquery( \@queries );
 		do_log(3,"Query took ".(time-$qstart)."sec");
@@ -1274,40 +1201,34 @@ sub fetch_data() {
 			# so divide by # procs, and divide by time interval in ms.
 			foreach my $item ( @$guests ) {
 			  my($host,$hostcpuspeed,$max)=(0,0,0);	
-			  if(!$item->runtime or $item->runtime->powerState->val ne 'poweredOn') {
-				do_log(3,"Guest ".$item->name." is not powered on");
-				next;
-			  }
-			  # DANGER!  This seems to not be available before host ESX v5
+			  next if(!$item->runtime or $item->runtime->powerState->val ne 'poweredOn');
 			  $max = $item->config->hardware->numCPU
 				* $item->config->hardware->numCoresPerSocket
 				* $interval * 1000; # milliseconds in interval (should be 300,000 but might be 20,000)
-			  if($max) {
+			  next if(!$max);
 			  do_log(3,"Guest ".$item->name." max=$max interval=$interval");
 			  # now, store them against the guest for later retrieval
 		      foreach my $k ( qw/cpu:used cpu:ready cpu:system cpu:wait/) {
 				my $metricid = $perfkeys{$k};
 			    $item->{$k} = 
-					($results{$item->{mo_ref}{value}.":".$metricid} / $max) * 100.0
-					if(!$item->{$k});
+					($results{$item->{mo_ref}{value}.":".$metricid} / $max) * 100.0;
 				do_log(3,$item->name." $k = "
 					.$results{$item->{mo_ref}{value}.":".$metricid}." = "
 					.$item->{$k}.'%');
 			  }
-			  }
               foreach my $k ( qw/mem:swapoutRate mem:swapinRate net:usage disk:usage/ ) {
-			    $item->{$k} = $results{$item->{mo_ref}{value}.":".$perfkeys{$k}} if(!$item->{$k});
+			    $item->{$k} = $results{$item->{mo_ref}{value}.":".$perfkeys{$k}};
 				do_log(3,$item->name." $k = ".$item->{$k});
 			  }
         	  foreach my $k ( qw/net:usage net:transmitted net:received/ ) {
 				foreach my $netdev ( @{$item->{devices_net}} ) {
-					$item->{"$k:$netdev"} = $results{$item->{mo_ref}{value}.":".$perfkeys{$k}.":$netdev"} if(!$item->{"$k:$netdev"});
+					$item->{"$k:$netdev"} = $results{$item->{mo_ref}{value}.":".$perfkeys{$k}.":$netdev"};
 					do_log(3,$item->name." $k($netdev) = ".$item->{"$k:$netdev"});
 				}
 			  }
         	  foreach my $k ( qw/virtualDisk:read virtualDisk:write virtualDisk:totalReadLatency virtualDisk:totalWriteLatency/ ) {
 				foreach my $hddev ( @{$item->{devices_hd}} ) {
-					$item->{"$k:$hddev"} = $results{$item->{mo_ref}{value}.":".$perfkeys{$k}.":".$item->{devices_desc}{$hddev}} if(!$item->{"$k:$hddev"});
+					$item->{"$k:$hddev"} = $results{$item->{mo_ref}{value}.":".$perfkeys{$k}.":".$item->{devices_desc}{$hddev}};
 					do_log(3,$item->name." $k($hddev) = ".$item->{"$k:$hddev"});
 				}
 			  }
@@ -1379,37 +1300,24 @@ sub identify($$) {
 
 	$trim =~ s/\./\\./g;
 
-	# Any explicit maps defined?
-	if( (ref $view) and  defined $config{map}{$view->name} ) {
-		( $full, $real ) = split /\s*,\s*/,$config{map}{$view->name};
-		if(!$real) {
-			$real = $full;
-			$real =~ s/\.$trim$// if($trim);
-		}
-		do_log(3,"identify(): Identified object ".$view->name." as $real (using maps)");
-		return ($full,$real);
-	}
-
 	# First, check against hostname
-	do_log(3,"identify(): Identifying item of type [".(ref $view)."]".((ref $view)?(" moid=".$view->{mo_ref}->{value}." name ".$view->name):""));
+	do_log(3,"identify(): Identifying item of type [".(ref $view)."]".((ref $view)?" moid=".$view->{mo_ref}->{value}:""));
 	if(!ref $view) {
 		$real = $view;
 	} elsif( ref $view eq 'HostSystem' ) {
 		do_log(3,"identify(): Host is ".$view->name);
 		$real = $view->name;
 	} elsif( $view->guest->hostName and $view->guest->hostName=~/\./ ) {
+		do_log(3,"identify(): Guest is ".$view->name);
 		$uuid = $view->config->uuid;
 		if( defined $idcache{$uuid} ) {
-			do_log(3,"identify(): Identified object ".$view->name." as ".$idcache{$uuid}[1]." (from cache)");
 			return @{$idcache{$uuid}};
 		}
-		do_log(3,"identify(): Object is ".$view->name);
 		$real = $view->guest->hostName;
 	} else {
 		$real = ""; # not known yet
 	}
 	$full = lc $real;
-	$count = 0;
 	if($real and $real=~/\./) {
 		if($config{nagios}{canonicalise}) {
 			$real = canonicalise($real);
@@ -1417,32 +1325,22 @@ sub identify($$) {
 		$real = lc $real if($config{nagios}{tolower});
 		$real =~ s/\.$trim$// if($trim);
 		if($verify and $livestatus) {
-			$count = $livestatus->selectscalar_value("GET hosts\nColumns: address\nFilter: host_name = $real");
+			$count = $livestatus->selectscalar_value("GET hosts\nFilter: host_name = $real");
 			do_log(4,"identify(): Verifying [$full] as [$real] gives [$count]");
-			do_log(1,"Livestatus error: ".$Monitoring::Livestatus::ErrorMessage )
-				if(  $Monitoring::Livestatus::ErrorCode );
-			if(!$count and $config{nagios}{fuzzy} and $real =~ /^[^\.\s]+\.[^\.\s]+$/) {
-				my($nreal) = $real;
-				$nreal =~ s/\..*$//;
-				$count = $livestatus->selectscalar_value("GET hosts\nColumns: host_name\nFilter: host_name ~ ^$nreal");
-				$real = $count if($count);
-			}
 			do_log(($config{nagios}{verify_warning}?1:3),
-				"identify(): Could not find [$real] in livestatus (after canonicalisation).")
+				"identify(): Could not find [$real] in livestatus.")
 				if(!$count);;
 		}
 		if($count or !$verify) {
 #			$uuid = $view->config->uuid if(!$uuid);
 			$idcache{$uuid} = [ $full, $real ]
 				if( $uuid and (ref $view eq 'VirtualMachine'));
-			do_log(3,"identify(): Identified object ".$view->name." as $real (by vmware Tools hostName)");
+			do_log(3,"identify(): Identified host $full as $real (by vmware Tools hostName)");
 			return ($full,$real);
 		}
 		$tried{$real} = 1;
 	}
 	if(!ref $view) {
-		do_log(($config{nagios}{verify_warning}?1:3),
-			"identify(): Unable to identify object $view (as not ref)");
 		return(undef,undef);
 	}
 	# Next, check against IP addresses
@@ -1465,7 +1363,6 @@ sub identify($$) {
 			
 		foreach $ipaddr ( @ipaddr ) {
 			next if(!$ipaddr);
-			next if($config{global}{ipmatch} and $ipaddr!~/$config{global}{ipmatch}/);
 			do_log(3,"identify(): Testing IP [$ipaddr]");
 			@rv	= gethostbyaddr(inet_aton($ipaddr),AF_INET);
 			next if(!@rv);
@@ -1478,9 +1375,7 @@ sub identify($$) {
 			next if($tried{$real});
 			$tried{$real} = 1;
 			if($verify and $livestatus) {
-				$count = $livestatus->selectscalar_value("GET hosts\nColumns: address\nFilter: host_name = $real");
-				do_log(1,"Livestatus error: ".$Monitoring::Livestatus::ErrorMessage )
-					if(  $Monitoring::Livestatus::ErrorCode );
+				$count = $livestatus->selectscalar_value("GET hosts\nFilter: host_name = $real");
 				do_log(4,"identify(): Verifying [$ipaddr] as [$real] gives [$count]");
 				do_log(($config{nagios}{verify_warning}?1:3),
 					"identify(): Could not find [$real] in livestatus (from IP addr $ipaddr).")
@@ -1493,14 +1388,12 @@ sub identify($$) {
 		if(($count or !$verify) and $full and $real) {
 			$idcache{$uuid} = [ $full, $real ]
 				if( $uuid and (ref $view eq 'VirtualMachine'));
-			do_log(3,"identify(): Identified object ".$view->name." as $real (by vmware Tools ipAddress)");
+			do_log(3,"identify(): Identified host ".$view->name." as $real (by vmware Tools ipAddress)");
 			return ($full,$real);
 		}
 	} # virtual machines only
 
 	if( ! $config{vmware}{usename} ) {
-		do_log(($config{nagios}{verify_warning}?1:3),
-			"identify(): Unable to identify object ".$view->name." (as no 'usename' option)");
 		return (undef,undef);
 	}
 
@@ -1515,7 +1408,7 @@ sub identify($$) {
 			$real = canonicalise($real);
 		}
 		if($verify and $livestatus) {
-			$count = $livestatus->selectscalar_value("GET hosts\nColumns: address alias state\nFilter: host_name = $real");
+			$count = $livestatus->selectscalar_value("GET hosts\nFilter: host_name = $real");
 			do_log(4,"identify(): Verifying [".$view->name."] as [$real] gives [$count]");
 			do_log(($config{nagios}{verify_warning}?1:3),
 				"identify(): Could not find [$real] in livestatus (from view name ".$view->name.").")
@@ -1530,7 +1423,7 @@ sub identify($$) {
 		}
 	}
 	do_log(($config{nagios}{verify_warning}?1:3),
-		"identify(): Unable to identify object ".$view->name." (tried everything)");
+		"identify(): Unable to identify object ".$view->name);
 
 	return (undef,undef);
 }
@@ -1624,7 +1517,6 @@ sub nsca_send($$$$) {
 	    close(SOCK);
     	alarm 0;
 	};
-    	alarm 0; # just in case
 
 	if($@) {
 		$nscaerr = 1;
@@ -1646,9 +1538,9 @@ sub send_nagios_status($$$$) {
 	return if(!$host);
 	if( $config{global}{test} ) {
 		if($svc) {
-			do_log(3,"NOT Sending Nagios status [$host][$svc]=$status,$msg");
+			do_log(3,"NOT Sending Nagios status [$host][$svc]=$status");
 		} else {
-			do_log(3,"NOT Sending Nagios status [$host]=$status,$msg");
+			do_log(3,"NOT Sending Nagios status [$host]=$status");
 		}
 		return;
 	}
@@ -1663,12 +1555,7 @@ sub send_nagios_status($$$$) {
 		$lscmd=("COMMAND [$t] PROCESS_HOST_CHECK_RESULT;$host;$status;$msg");
 	}
 	if($livestatus and !$livestatuserr) {
-		eval { $livestatus->do($lscmd); };
-		if($@) {
-			do_log(2,"Error on Livestatus send: $@");
-			$livestatus = 0;
-			$livestatuserr = 1;
-		}
+		$livestatus->do($lscmd);
 	}
 	if(!$livestatuserr and (!$livestatus or $Monitoring::Livestatus::ErrorCode)) {
 		$livestatuserr = 1;
@@ -1684,7 +1571,6 @@ sub send_nagios_status($$$$) {
 			do_log(0, "Unable to reconnect to livestatus service on "
 					.$config{'nagios'}{'livestatus'}."\n"
 					.$Monitoring::Livestatus::ErrorMessage);
-			$livestatus = 0;
 		} else {
 			$livestatuserr = 0;
 			do_log(2,"Reconnected to livestatus service");
@@ -1698,15 +1584,7 @@ sub send_nagios_status($$$$) {
 	} else {
 		$lscmd=("COMMAND [$t] PROCESS_HOST_CHECK_RESULT;$host;$status;$msg");
 	}
-	if($duplivestatus) { 
-		eval { $duplivestatus->do($lscmd);  };
-		if($@) {
-			do_log(2,"Error on Livestatus send: $@");
-			$duplivestatuserr = 1;
-			$duplivestatus = 0;
-			return;
-		}
-	} 
+	if($duplivestatus) { $duplivestatus->do($lscmd); } 
 	if(!$duplivestatus or $Monitoring::Livestatus::ErrorCode) {
 		$duplivestatuserr = 1;
 		do_log(1, "Unable to send update to duplicate livestatus service for [$host][$svc] (".$Monitoring::Livestatus::ErrorCode.")\n$lscmd\n"
@@ -1721,7 +1599,6 @@ sub send_nagios_status($$$$) {
 			do_log(0, "Unable to reconnect to duplicate livestatus service on "
 					.$config{'nagios'}{'duplivestatus'}."\n"
 					.$Monitoring::Livestatus::ErrorMessage);
-			$duplivestatus = 0;
 		} else {
 			$duplivestatuserr = 0;
 			do_log(2,"Reconnected to duplicate livestatus service");
@@ -1776,7 +1653,6 @@ sub send_mrtg($) {
 		print $rrdcached "$cmd\n";
 		alarm(0);
 	};
-	alarm(0);
 	if($@) {
 		close $rrdcached;
 		$rrdcached = 0; # force reconnect next time
@@ -1799,7 +1675,6 @@ sub send_mrtg($) {
 		}
 		alarm(0);
 	};
-	alarm(0);
 	if($@ or !$rv) {
 		close $rrdcached;
 		$rrdcached = 0; # force reconnect next time
@@ -1827,9 +1702,8 @@ sub update_rrdcached {
 		my($cmd);
 		my($step,$heartbeat);
 		$step = 300; # 5min
-		$heartbeat = $config{'mrtg'}{'heartbeat'};
-		$heartbeat = 4 * $config{'global'}{'frequency'} if(!$heartbeat);
-		$heartbeat = 4*$step if(!$heartbeat);
+		$heartbeat = 2 * $config{'global'}{'frequency'};
+		$heartbeat = 2*$step if(!$heartbeat);
 		$yrows = 800;
 		$yrows = $config{mrtg}{rows} if($config{mrtg}{rows});
 		$drows = $wrows = $mrows = $yrows;
@@ -1853,7 +1727,7 @@ sub update_rrdcached {
 		}
 	}
 	if($rv =~ /^-1 .*illegal attempt to update/i ) {
-		do_log(1,"RRDupdate ${rrdfile} ${t}:${in}:${out} seems to be a duplicate: $rv");
+		do_log(1,"RRDupdate $rrdfile seems to be a duplicate.");
 		return 1;
 	} elsif($rv =~ /^-1/ ) {
 		do_log(0,"RRDupdate $rrdfile failed: $rv");
@@ -1923,15 +1797,14 @@ sub total_cpu_mem($) {
 	my($cpupc,$mempc) = (-1,-1);
 	my($view,$moref);
 
-#    eval {
-#		$availcpu = $cluster->summary->effectiveCpu;    # MHz
-##		$availmem = $cluster->summary->effectiveMemory; # MB
-##		$availmem = $cluster->summary->hardware->memorySize; # B
-#	};
-#    if($@) {
-#		do_log(0, "ERROR: $@" );
-# 		return(-2,-2,"ERROR: $@");
-#	}
+    eval {
+		$availcpu = $cluster->summary->effectiveCpu;    # MHz
+		$availmem = $cluster->summary->effectiveMemory; # MB
+	};
+    if($@) {
+		do_log(0, "ERROR: $@" );
+ 		return(-2,-2,"ERROR: $@");
+	}
 
 	if($cluster->host) {
  	  foreach $moref (@{$cluster->host}) {
@@ -1939,20 +1812,15 @@ sub total_cpu_mem($) {
 		next if(!$view);
 		next if(!$view->summary);
 		$totcpu += $view->summary->quickStats->overallCpuUsage; # MHz
-		$availcpu += $view->summary->hardware->cpuMhz * $view->summary->hardware->numCpuCores;
 		$totmem += $view->summary->quickStats->overallMemoryUsage; # MB
-		$availmem += $view->summary->hardware->memorySize / 1024000; # MB
+
 	  }
 	} else {
 		return (-1,-1,"No active hosts in cluster");
 	}
-    if($availcpu < 1 or $availmem < 1) {
-		do_log(0, "ERROR: Cluster total CPU=$availcpu, total mem=$availmem" );
-	 	return(-1,-1,"ERROR: Cannot determine cluster CPU/MEM");
-	}
 
-	$cpupc = $totcpu / $availcpu * 100 if($availcpu and ($totcpu<=$availcpu));
-	$mempc = $totmem / $availmem * 100 if($availmem and ($totmem<=$availmem));
+	$cpupc = $totcpu / $availcpu * 100 if($availcpu);
+	$mempc = $totmem / $availmem * 100 if($availmem);
 	return ($cpupc,$mempc,'');
 }
 # Loop through all the possible items we can update
@@ -1994,9 +1862,8 @@ sub do_update_mrtg() {
 			check_datastores_mrtg($item,$name,$t,'clusters');
 			# cpu/memory fairness
 			$rrd = $name.'-'.$rrdfiles{clusters}{fairness}.'.rrd';
-			($in,$out) = ($item->summary->currentBalance/1000, $item->summary->targetBalance/1000);
-			update_rrdcached($rrd,$in,$out,$t,100)
-				if($out and $out>0);
+			($in,$out) = ($item->summary->currentBalance, $item->summary->targetBalance);
+			update_rrdcached($rrd,$in,$out,$t,100000);
 			# CPU/memory usage
 			# need to total up the component hosts
 			$rrd = $name.'-'.$rrdfiles{clusters}{resources}.'.rrd';
@@ -2047,7 +1914,6 @@ sub do_update_mrtg() {
 			my($qs,$cpumax,$memmax,$cpupc,$mempc);
 			my($fn,$na) = identify($item,$config{nagios}{verify});
 			next if(!$fn);
-			do_log(3,"CPU stat is '".$item->{'cpu:used'}."'") if($DEBUG>1);
 			my $qs = $item->summary->quickStats;
 			do_log(3,"Processing MRTG for [$na]");
 			# Guest stats 
@@ -2061,8 +1927,7 @@ sub do_update_mrtg() {
 			} else {
 				$cpupc = 'U';
 			}
-			#$memmax = $item->summary->runtime->maxMemoryUsage;
-			$memmax = $item->summary->config->memorySizeMB;
+			$memmax = $item->summary->runtime->maxMemoryUsage;
 			if( $memmax ) {
 				$mempc = int(100*$qs->guestMemoryUsage/$memmax*100)/100;
 			} else {
@@ -2147,8 +2012,8 @@ sub do_update_mrtg() {
 		}
 	}
 }
-sub check_alarms($$) {
-	my($item,$aexcl) = @_;
+sub check_alarms($) {
+	my($item) = $_[0];
 	my($status,$msg);
 	my($s,$alrm,$aentity,$adef);
 	$status = 0; $msg = "";
@@ -2159,7 +2024,6 @@ sub check_alarms($$) {
 			$aentity = getview($alrm->entity);
 			$adef = getview($alrm->alarm);
 			next unless($aentity and $adef and $adef->info);
-			next if( $aexcl and $adef->info->name =~ /$aexcl/ );
 			$status = 2 if($s eq 'red');
 			$status = 1 if(!$status and $s eq 'yellow');
 			$msg .= "\\n" if($msg);
@@ -2175,10 +2039,7 @@ sub check_alarms($$) {
 }
 sub check_datastores($$$) {
 	my($item,$name,$ctype) = @_;
-	my($free,$total,$status,$pc,$ds,$moref,$warn,$crit);
-	my($gstatus) = 0;
-	my($gmsg) = "";
-	my($dfree);
+	my($free,$total,$status,$pc,$ds,$moref);
 
 	$free = $total = 0;
 	if( $item->datastore ) {
@@ -2187,51 +2048,45 @@ sub check_datastores($$$) {
 		next if(!$ds or !$ds->name);
 		next if( $config{$ctype}{ds_include} and $ds->name!~/$config{$ctype}{ds_include}/i );
 		next if( $config{$ctype}{ds_exclude} and $ds->name=~/$config{$ctype}{ds_exclude}/i );
-		# in detail
-		if($ds->summary->capacity) {
+		if( $config{$ctype}{datastores} ) {
+			# in detail
 			$status = 0;
-			$dfree = $ds->summary->freeSpace;
-			$warn = threshold('dsk','warn',[$name,$ctype],$ds->name);
-			$crit = threshold('dsk','crit',[$name,$ctype],$ds->name);
-			$pc = ($ds->summary->capacity - $dfree)*100/$ds->summary->capacity;
-			$status = 1 if($dfree<$warn);
-			$status = 2 if($dfree<$crit);
-			if( $config{$ctype}{datastores} ) { # if in detail mode
+			if($ds->summary->capacity) {
+				$pc = ($ds->summary->capacity - $ds->summary->freeSpace)*100/$ds->summary->capacity;
+				$status = 1 if($ds->summary->freeSpace<threshold('dsk','warn',[$name,$ctype]));
+				$status = 2 if($ds->summary->freeSpace<threshold('dsk','crit',[$name,$ctype]));
 				send_nagios_status($name,$servicedesc{$ctype}{datastore}.": ".$ds->name,$status,
 					"Datastore usage at ".(int($pc*10)/10)."\% of "
-						.int($ds->summary->capacity/1024000000)."GB.  ".int($dfree/1024000000)."GB free|"
+						.int($ds->summary->capacity/1024000000)."GB.  ".int($ds->summary->freeSpace/1024000000)."GB free|"
 						." usedpc=$pc\%;;;0;100"
-						." free=$dfree;$warn;$crit;0;"
+						." free=".$ds->summary->freeSpace.";"
+						.threshold('dsk','warn',[$name,$ctype]).";"
+						.threshold('dsk','crit',[$name,$ctype]).";0;"
 						.$ds->summary->capacity
-						." used=".($ds->summary->capacity - $dfree).";;;0;".$ds->summary->capacity
+						." used=".($ds->summary->capacity - $ds->summary->freeSpace).";;;0;".$ds->summary->capacity
 				);
+			} else {
+				send_nagios_status($name,$servicedesc{$ctype}{datastore}.": ".$ds->name,3,
+					"Unable to identify datastore usage for ".$ds->name);
 			}
-			$gstatus = $status if($status>$gstatus);
-			if($status) {
-				$gmsg .= "\\n" if($gmsg);
-				$gmsg .= "[".($status==2?"C":"W")."] ".$ds->name." Free: ".int($dfree/1024000000)."GB (".(int($pc*10)/10)."\% used)";
-			}
-		} elsif( $config{$ctype}{datastores} ) {
-			send_nagios_status($name,$servicedesc{$ctype}{datastore}.": ".$ds->name,3,
-				"Unable to identify datastore usage for ".$ds->name);
 		} 
 		# summary
 		$free  += $ds->summary->freeSpace; # freebytes
 		$total += $ds->summary->capacity; # total bytes
-	  } # datastore loop
-	} # datastores exist
+	  }
+	}
 	if( ! $config{$ctype}{datastores} ) {
-		$status = $gstatus;
+		$status = 0;
 		if($total) {
 			$pc = ($total - $free)*100/$total;
-			$status = 1 if($free<threshold('dsk','warn',[$name,$ctype],0));
-			$status = 2 if($free<threshold('dsk','crit',[$name,$ctype],0));
+			$status = 1 if($free<threshold('dsk','warn',[$name,$ctype]));
+			$status = 2 if($free<threshold('dsk','crit',[$name,$ctype]));
 			send_nagios_status($name,$servicedesc{$ctype}{datastores},$status,
 				"Overall datastore usage at ".(int($pc*10)/10)."\% of "
-					.int($total/1024000000)."GB.  ".int($free/1024000000)."GB free${gmsg}|"
+					.int($total/1024000000)."GB.  ".int($free/1024000000)."GB free|"
 					."usedpc=$pc\%;;;0;100 free=$free;"
-					.threshold('dsk','warn',[$name,$ctype],0).";"
-					.threshold('dsk','crit',[$name,$ctype],0).";0;$total used="
+					.threshold('dsk','warn',[$name,$ctype]).";"
+					.threshold('dsk','crit',[$name,$ctype]).";0;$total used="
 					.($total-$free).";;;0;$total"
 			);
 		} else {
@@ -2253,7 +2108,7 @@ sub do_update_nagios() {
 			do_log(3,"Running Nagios update for $name");
 			send_nagios_status($name,'',0,'See individual services for status');
 			# check vc alarms
-			($status,$msg) = check_alarms($item,$config{datacenters}{alarm_exclude});
+			($status,$msg) = check_alarms($item);
 			send_nagios_status($name,$servicedesc{datacenters}{alarms},$status,$msg);
 			# check datastore usage
 			check_datastores($item,$name,'datacenters');
@@ -2267,33 +2122,28 @@ sub do_update_nagios() {
 	}
 	if( $config{'global'}{'clusters'} and $clusters ) {
 		foreach $item ( @$clusters ) {
-			my($warn,$crit);
-			my($tbal);
 			$name = 'ccr_'.cleanup($item->name());
 			do_log(3,"Running Nagios update for $name");
 			send_nagios_status($name,'',0,'See individual services for status');
 			$status = $item->overallStatus->val;
 			send_nagios_status($name,$servicedesc{clusters}{status},$mapstatus{$status},"Cluster status is <A href=https://$config{vmware}{server}:9443/vsphere-client/>$status</A>");
 			# check vc alarms
-			($status,$msg) = check_alarms($item,$config{clusters}{alarm_exclude});
+			($status,$msg) = check_alarms($item);
 			send_nagios_status($name,$servicedesc{clusters}{alarms},$status,$msg);
 			# check datastore usage
 			check_datastores($item,$name,'clusters');
 			# check cluster fairness
-			$val = $item->summary->currentBalance / 1000;
-			$tbal= $item->summary->targetBalance / 1000;
-			$warn = $tbal*threshold('balance','warn',[$name,'clusters'],$item->name())/100;
-			$crit = $tbal*threshold('balance','crit',[$name,'clusters'],$item->name())/100;
-			$crit = "" if($crit<0);
-			$msg = "Cluster resource balance SD: Current=$val, Target<=$tbal"
-				."|current=$val;$warn;$crit;0; target=".($item->summary->targetBalance/1000).";;;0;";
-			if($tbal<=0) {
-				$msg = "Unable to determine cluster balance:  Is vSphere DRS configured?";
+			$val = (int($item->summary->currentBalance * 10000 / $item->summary->targetBalance)/100)-100;
+			$msg = "Current cluster resource balance "
+				.(($val>0)?"+":"")
+				."$val\% (current=".$item->summary->currentBalance.", target=".$item->summary->targetBalance.")";
+			$status = 0; 
+			$status = 1 if(abs($val)>threshold('balance','warn',[$name,'clusters']));
+			$status = 2 if(abs($val)>threshold('balance','crit',[$name,'clusters']));
+			if($item->summary->currentBalance == 0) {
 				$status = 3;
-			} elsif($crit and $val>$crit) { $status = 2;  
-			} elsif($warn and $val>$warn) { $status = 1;
-			} else { $status = 0; }
-			
+				$msg = "Unable to determine cluster balance (is DDR enabled?)";
+			}
 			send_nagios_status($name,$servicedesc{clusters}{fairness},$status,$msg);
 			# check CPU usage
 			# Need to total up from member hosts, convert to %
@@ -2304,11 +2154,11 @@ sub do_update_nagios() {
 			} else {
 				$cpu = int(100*$cpu)/100;
 				$status = 0;
-				$status = 1 if($cpu>=threshold('cpu','warn',[$name,'clusters'],$item->name()));
-				$status = 2 if($cpu>=threshold('cpu','crit',[$name,'clusters' ],$item->name()));
+				$status = 1 if($cpu>=threshold('cpu','warn',[$name,'clusters']));
+				$status = 2 if($cpu>=threshold('cpu','crit',[$name,'clusters' ]));
 				$msg="Cluster CPU usage $cpu\%|cpu=$cpu\%;"
-					.threshold('cpu','warn',[$name,'clusters'],$item->name()).";"
-					.threshold('cpu','crit',[$name,'clusters'],$item->name()).";0;100";
+					.threshold('cpu','warn',[$name,'clusters']).";"
+					.threshold('cpu','crit',[$name,'clusters']).";0;100";
 			}
 			send_nagios_status($name,$servicedesc{clusters}{cpu},$status,$msg);
 			if($mem<0) {
@@ -2317,11 +2167,11 @@ sub do_update_nagios() {
 			} else {
 				$mem = int(100*$mem)/100;
 				$status = 0;
-				$status = 1 if($mem>=threshold('mem','warn',[$name,'clusters'],$item->name()));
-				$status = 2 if($mem>=threshold('mem','crit',[$name,'clusters'],$item->name()));
+				$status = 1 if($mem>=threshold('mem','warn',[$name,'clusters']));
+				$status = 2 if($mem>=threshold('mem','crit',[$name,'clusters']));
 				$msg="Cluster Memory usage $mem\%|memory=$mem\%;"
-					.threshold('mem','warn',[$name,'clusters'],$item->name()).";"
-					.threshold('mem','crit',[$name,'clusters'],$item->name()).";0;100";
+					.threshold('mem','warn',[$name,'clusters']).";"
+					.threshold('mem','crit',[$name,'clusters']).";0;100";
 			}
 			send_nagios_status($name,$servicedesc{clusters}{memory},$status,$msg);
 		}
@@ -2333,12 +2183,11 @@ sub do_update_nagios() {
 			do_log(3,"Running Nagios update for $name");
 			# host check is active.
 #			$status = $item->runtime->powerState->val;
-#			send_nagios_status($name,'',$mapstatus{$status},"Host status is $status")
-#				if($config{'nagios'}{'agent_host_checks'});
+#			send_nagios_status($name,'',$mapstatus{$status},"Host status is $status");
 			$status = $item->overallStatus->val;
 			send_nagios_status($name,$servicedesc{hosts}{status},$mapstatus{$status},"ESX Host status is <A href=https://$config{vmware}{server}:9443/vsphere-client/>$status</A>");
 			# check vc alarms
-			($status,$msg) = check_alarms($item,$config{hosts}{alarm_exclude});
+			($status,$msg) = check_alarms($item);
 			send_nagios_status($name,$servicedesc{hosts}{alarms},$status,$msg);
 			# info page
 			my($ccr) = find_cluster($item->parent());
@@ -2356,30 +2205,30 @@ sub do_update_nagios() {
 			$cpu = $item->summary->quickStats->overallCpuUsage * 100.0 / ( $item->summary->hardware->cpuMhz * $item->summary->hardware->numCpuCores );
 			$cpu = int(100*$cpu)/100;
 			$status = 0;
-			$status = 1 if($cpu>=threshold('cpu','warn',[$name,'hosts'],$name));
-			$status = 2 if($cpu>=threshold('cpu','crit',[$name,'hosts'],$name));
+			$status = 1 if($cpu>=threshold('cpu','warn',[$name,'hosts']));
+			$status = 2 if($cpu>=threshold('cpu','crit',[$name,'hosts']));
 			$msg="Host CPU usage $cpu\%|cpu=$cpu\%;"
-				.threshold('cpu','warn',[$name,'hosts'],$name).";"
-				.threshold('cpu','crit',[$name,'hosts'],$name).";0;100";
+				.threshold('cpu','warn',[$name,'hosts']).";"
+				.threshold('cpu','crit',[$name,'hosts']).";0;100";
 			$msg .= " usage=".($item->summary->quickStats->overallCpuUsage*1000000)."hz;;;0; ";
 			send_nagios_status($name,$servicedesc{hosts}{cpu},$status,$msg);
 			# check memory usage
 			$mem = $item->summary->quickStats->overallMemoryUsage * 1024000 * 100.0 / $item->summary->hardware->memorySize;
 			$mem = int(100*$mem)/100;
 			$status = 0;
-			$status = 1 if($mem>=threshold('mem','warn',[$name,'hosts'],$name));
-			$status = 2 if($mem>=threshold('mem','crit',[$name,'hosts'],$name));
+			$status = 1 if($mem>=threshold('mem','warn',[$name,'hosts']));
+			$status = 2 if($mem>=threshold('mem','crit',[$name,'hosts']));
 			$msg="Host Memory usage $mem\%";
 			$msg .= "\\nSwap activity: i/o ".$item->{'mem:swapinRate'}
 				." / ".$item->{'mem:swapoutRate'}." Kps";
-			$status = 2 if($item->{'mem:swapinRate'}>threshold('swapin','crit',[$name,'hosts'],$name));
-			$status = 1 if(!$status and $item->{'mem:swapinRate'}>threshold('swapin','warn',[$name,'hosts'],$name));
+			$status = 2 if($item->{'mem:swapinRate'}>threshold('swp','crit',[$name,'hosts']));
+			$status = 1 if(!$status and $item->{'mem:swapinRate'}>threshold('swp','warn',[$name,'hosts']));
 			$msg .= "|memory=$mem\%;"
-				.threshold('mem','warn',[$name,'hosts'],$name).";"
-				.threshold('mem','crit',[$name,'hosts'],$name).";0;100 ";
+				.threshold('mem','warn',[$name,'hosts']).";"
+				.threshold('mem','crit',[$name,'hosts']).";0;100 ";
 			$msg .= "swapIn=".($item->{'mem:swapinRate'}*1024)."B;"
-				.(threshold('swapin','warn',[$name,'hosts'],$name)*1024).";"
-				.(threshold('swapin','crit',[$name,'hosts'],$name)*1024).";0; ";
+				.(threshold('swp','warn',[$name,'hosts'])*1024).";"
+				.(threshold('swp','crit',[$name,'hosts'])*1024).";0; ";
 			$msg .= "swapOut=".($item->{'mem:swapoutRate'}*1024).";;;0; ";
 
 			send_nagios_status($name,$servicedesc{hosts}{memory},$status,$msg);
@@ -2389,13 +2238,13 @@ sub do_update_nagios() {
 				if(! defined $ntp{$name} ) {
 					$msg = "Time cannot be retrieved (check ESX host firewall rules)";
 					$status = 3;
-				} elsif(( $ntp{$name} > threshold('ntp','crit',[$name,'hosts'],0) )
-					or( $ntp{$name} < -threshold('ntp','crit',[$name,'hosts'],0) )) {
-					$msg = "Time not synchronised! (Offset: ".$ntp{$name}."s, threshold ".threshold('ntp','crit',[$name,'hosts'],0)."s)";
+				} elsif(( $ntp{$name} > threshold('ntp','crit',[$name,'hosts']) )
+					or( $ntp{$name} < -threshold('ntp','crit',[$name,'hosts']) )) {
+					$msg = "Time not synchronised! (Offset: ".$ntp{$name}."s, threshold ".threshold('ntp','crit',[$name,'hosts'])."s)";
 					$status = 2;
-				} elsif(( $ntp{$name} > threshold('ntp','warn',[$name,'hosts'],0) )
-					or( $ntp{$name} < -threshold('ntp','warn',[$name,'hosts'],0) )) {
-					$msg = "Time not synchronised! (Offset: ".$ntp{$name}."s, threshold ".threshold('ntp','warn',[$name,'hosts'],0) ."s)";
+				} elsif(( $ntp{$name} > threshold('ntp','warn',[$name,'hosts']) )
+					or( $ntp{$name} < -threshold('ntp','warn',[$name,'hosts']) )) {
+					$msg = "Time not synchronised! (Offset: ".$ntp{$name}."s, threshold ".threshold('ntp','warn',[$name,'hosts']) ."s)";
 					$status = 1;
 				} else {
 					$msg = "Time synchronised OK (Offset: ".$ntp{$name}."s)";
@@ -2423,36 +2272,21 @@ sub do_update_nagios() {
 			my($perf);
 			($fname,$name) = identify($item,$config{'nagios'}{'verify'});
 			next if(!$name);
-			do_log(3,"CPU stat is '".$item->{'cpu:used'}."'") if($DEBUG>1);
 			$qs = $item->summary->quickStats;
 			do_log(3,"Running Nagios update for $name");
-		
-			if( $config{'nagios'}{'guest_with_host'} 
-				and $config{'nagios'}{'agent_host_checks'}
-			) {
-				# The agent is not responsible for the host checks unless
-				# we have guest_with_host set in the config
-				$status = $item->runtime->powerState->val;
-				if( $status eq 'poweredOff' ) {
-					send_nagios_status($name,'',1,"VM $status");
-					foreach ( qw/alarms status cpu memory net disk/ ) {
-						send_nagios_status($name,$servicedesc{guests}{$_},3,"Guest is powered off");
-					}
-					next;
+			$status = $item->runtime->powerState->val;
+			if( $status eq 'poweredOff' or $item->guest->guestState eq 'notRunning' ) {
+				send_nagios_status($name,'',1,"VM $status; Guest ".$item->guest->guestState);
+				foreach ( qw/alarms status cpu memory net disk/ ) {
+					send_nagios_status($name,$servicedesc{guests}{$_},3,"Guest is not running");
 				}
-				if( $item->guest->guestState eq 'notRunning' ) {
-					send_nagios_status($name,'',1,"VM $status; Guest ".$item->guest->guestState);
-					foreach ( qw/alarms status cpu memory net disk/ ) {
-						send_nagios_status($name,$servicedesc{guests}{$_},3,"Guest is not running");
-					}
-					next;
-				} else {
-					send_nagios_status($name,'',0,"VM $status; Guest ".$item->guest->guestState);
-					# host check is active.
-				}
+				next;
+			} else {
+				send_nagios_status($name,'',0,"VM $status; Guest ".$item->guest->guestState);
+				# host check is active.
 			}
 			# check vc alarms
-			($status,$msg) = check_alarms($item,$config{guests}{alarm_exclude});
+			($status,$msg) = check_alarms($item);
 			send_nagios_status($name,$servicedesc{guests}{alarms},$status,$msg);
 			$status = $item->overallStatus->val;
 			send_nagios_status($name,$servicedesc{guests}{status},$mapstatus{$status},"Virtual machine status is <A href=https://$config{vmware}{server}:9443/vsphere-client/>$status<A>");
@@ -2480,35 +2314,34 @@ sub do_update_nagios() {
 			if( $max ) {
 				$pc = int(100 * $qs->overallCpuUsage / $max * 100.0)/100;
 				$msg = "Spot CPU usage $pc\% of maximum ("
-					.$qs->overallCpuUsage."MHz from ${max}MHz)";
-				$msg .= "\\n5min avg CPU% used/ready/sys = "
+					.$qs->overallCpuUsage."MHz from ${max}MHz)"
+					."\\n5min avg CPU% used/ready/sys = "
 					.(int($item->{'cpu:used'}*100)/100)."\%/"
 					.(int($item->{'cpu:ready'}*100)/100)."\%/"
-					.(int($item->{'cpu:system'}*100)/100)."\%"
-					if( !$qs->overallCpuUsage or $item->{'cpu:used'} or $item->{'cpu:ready'} or $item->{'cpu:system'});
+					.(int($item->{'cpu:system'}*100)/100)."\%";
 
-				if($pc >= threshold('cpu','warn',[$name,'guests'],$name) ) {
+				if($pc >= threshold('cpu','warn',[$name,'guests']) ) {
 					$msg .= "\\nCPU usage is too high - check running processes!";
 					$status = 1 ;
-					$status = 2 if($pc >= threshold('cpu','crit',[$name,'guests'],$name) );
+					$status = 2 if($pc >= threshold('cpu','crit',[$name,'guests']) );
 				}
 
 				# add a ready time check here
-				if ($item->{'cpu:ready'} >= threshold('rdy','warn',[$name,'guests'],$name) ) {
+				if ($item->{'cpu:ready'} >= threshold('rdy','warn',[$name,'guests']) ) {
 					$msg .= "\\nReady time is too high - check ESX resource pools!";
 					$status = 1 if( $status < 1 );
-					$status = 2 if( $item->{'cpu:ready'} >= threshold('rdy','crit',[$name,'guests'],$name)  );
+					$status = 2 if( $item->{'cpu:ready'} >= threshold('rdy','crit',[$name,'guests'])  );
 				}
 
-				$msg .=	"|cpu=$pc\%;". threshold('cpu','warn',[$name,'guests'],$name)
-					.";". threshold('cpu','crit',[$name,'guests'],$name).";0;100 "
+				$msg .=	"|cpu=$pc\%;". threshold('cpu','warn',[$name,'guests'])
+					.";". threshold('cpu','crit',[$name,'guests']).";0;100 "
 					."usage=".($qs->overallCpuUsage*1000000)."hz;;"
-					.($max*10000*threshold('cpu','crit',[$name,'guests'],$name))
+					.($max*10000*threshold('cpu','crit',[$name,'guests']))
 					.";0;".($max*1000000)." "
 					."used=".$item->{'cpu:used'}."\%;;;0;100 "
 					."ready=".$item->{'cpu:ready'}."\%;"
-						.threshold('rdy','warn',[$name,'guests'],$name).";"
-						.threshold('rdy','crit',[$name,'guests'],$name).";0;100 "
+						.threshold('rdy','warn',[$name,'guests']).";"
+						.threshold('rdy','crit',[$name,'guests']).";0;100 "
 					."system=".$item->{'cpu:system'}."\%;;;0;100 "
 					."wait=".$item->{'cpu:wait'}."\%;;;0;100 ";
 			} else {
@@ -2517,8 +2350,7 @@ sub do_update_nagios() {
 			}
 			send_nagios_status($name,$servicedesc{guests}{cpu},$status,$msg);
 			# check memory usage
-			#$max = $item->summary->runtime->maxMemoryUsage;
-			$max = $item->summary->config->memorySizeMB;
+			$max = $item->summary->runtime->maxMemoryUsage;
 			if( $max ) {
 				$status = 0; 
 				$msg = "Memory total ${max}MB";
@@ -2532,26 +2364,26 @@ sub do_update_nagios() {
 					.int($qs->swappedMemory/$max*100)."%)";
 				$pc = int(100*$qs->guestMemoryUsage/$max*100)/100;
 				$msg .= "\\nActive memory: $pc\%";
-				$status = 1 if($pc >= threshold('mem','warn',[$name,'guests'],$name));
-				$status = 2 if($pc >= threshold('mem','crit',[$name,'guests'],$name));
+				$status = 1 if($pc >= threshold('mem','warn',[$name,'guests']));
+				$status = 2 if($pc >= threshold('mem','crit',[$name,'guests']));
 				if(defined $item->{'mem:swapinRate'}) {
 					$msg .= "\\nESX swapin rate: ".$item->{'mem:swapinRate'}." KB/s";
 				}
 				$pc = $qs->swappedMemory/$max*100;
-				if( $pc>=threshold('swp','warn',[$name,'guests'],$name) ) { 
+				if( $pc>=threshold('swp','warn',[$name,'guests']) ) { 
 					$status = 1 unless($status); 
-					$status = 2 if( $pc>=threshold('swp','crit',[$name,'guests'],$name));
+					$status = 2 if( $pc>=threshold('swp','crit',[$name,'guests']));
 					$msg .= "\\nSome memory is swapped out on ESX Server!";
 				}
 				$pc = $qs->balloonedMemory/$max*100;
-				if( $pc>=threshold('bal','warn',[$name,'guests'],$name) ) { 
-					$status = 2 if( $pc>=threshold('bal','crit',[$name,'guests'],$name));
+				if( $pc>=threshold('bal','warn',[$name,'guests']) ) { 
+					$status = 2 if( $pc>=threshold('bal','crit',[$name,'guests']));
 					$status = 1 unless($status); 
 					$msg .= "\\nSome memory is being reclaimed by the balloon driver!";
 				}
 				if(defined $item->{'mem:swapinRate'}) {
-				  if($item->{'mem:swapinRate'}>=threshold('swapin','warn',[$name,'guests'],$name)) {
-					$status = 2 if($item->{'mem:swapinRate'}>=threshold('swapin','crit',[$name,'guests'],$name));
+				  if($item->{'mem:swapinRate'}>=threshold('swapin','warn',[$name,'guests'])) {
+					$status = 2 if($item->{'mem:swapinRate'}>=threshold('swapin','crit',[$name,'guests']));
 					$status=1 unless($status);
 					$msg .= "\\nExcessive swapping at ESX server level!";
 				  }
@@ -2561,21 +2393,21 @@ sub do_update_nagios() {
 				$msg .= "|"
 					."memory=".($qs->hostMemoryUsage*1024000).";;;0;" .($max*1024000)." "
 					."active=".($qs->guestMemoryUsage*1024000).";"
-						.";" .(threshold('mem','crit',[$name,'guests'],$name)*$max*10240)
+						.";" .(threshold('mem','crit',[$name,'guests'])*$max*10240)
 						.";0;" .($max*1024000)." "
 					."balloon=".($qs->balloonedMemory*1024000).";;"
-						.(threshold('bal','crit',[$name,'guests'],$name)*$max*10240)
+						.(threshold('bal','crit',[$name,'guests'])*$max*10240)
 						.";0;" .($max*1024000)." "
 					."private=".($qs->privateMemory*1024000).";;;0;" .($max*1024000)." "
 					."shared=".($qs->sharedMemory*1024000).";;;0;" .($max*1024000)." "
 					."swapped=".($qs->swappedMemory*1024000).";;"
-						.(threshold('swp','crit',[$name,'guests'],$name)*$max*10240)
+						.(threshold('swp','crit',[$name,'guests'])*$max*10240)
 						.";0;" .($max*1024000)." ";
 #				if(defined $item->{'mem:swapinRate'}) {
 				  $msg .=
 					"swapIn=".($item->{'mem:swapinRate'}*1024).";"
-						.(threshold('swapin','warn',[$name,'guests'],$name)*1024).";"
-						.(threshold('swapin','crit',[$name,'guests'],$name)*1024).";0; "
+						.(threshold('swapin','warn',[$name,'guests'])*1024).";"
+						.(threshold('swapin','crit',[$name,'guests'])*1024).";0; "
 					."swapOut=".($item->{'mem:swapoutRate'}*1024).";;;0; " ;
 #				}
 			} else {
@@ -2586,56 +2418,59 @@ sub do_update_nagios() {
 
 			# disk throughput?
 			if(defined $item->{'disk:usage'}) {
-				$status = 0; $msg = ""; $perf="";
-				$msg = "Overall virtual disk usage: ".$item->{'disk:usage'}." KB/s";
-				$perf = "usage=".($item->{'disk:usage'}*1024).";;;0; ";
-				foreach my $k ( @{$item->{devices_hd}} ) {
-					my $nam = devdesc($item,$k);
-					my $rlval = $item->{"virtualDisk:totalReadLatency:$k"};
-					my $wlval = $item->{"virtualDisk:totalWriteLatency:$k"};
-					my $rval = $item->{"virtualDisk:read:$k"};
-					my $wval = $item->{"virtualDisk:write:$k"};
-					my $wlat = threshold('latency','warn',[$name,'guests'],devdesc($item,$k));
-					my $clat = threshold('latency','crit',[$name,'guests'],devdesc($item,$k));
-					$msg .= "\\n- $nam\\n-- r/w = $rval / $wval KB/s";
-					$msg .= "\\n-- latency = $rlval / $wlval ms";
-					if( $rlval >= $wlat or $wlval >= $wlat ) {	
-						$status = 1 if(!$status);
-						$status = 2 if( $rlval >= $clat or $wlval >= $clat );
-						$msg .= "\\n--- Over threshold!";
-					}
-					$perf .= devdesc($item,$k)."-r=".($rval*1024).";;;0; ";
-					$perf .= devdesc($item,$k)."-w=".($wval*1024).";;;0; ";
-					$perf .= devdesc($item,$k)."-latency-r=".($rlval/1000).";"
-						."$wlat;$clat;0; ";
-					$perf .= devdesc($item,$k)."-latency-w=".($wlval/1000).";"
-						."$wlat;$clat;0; ";
+			$status = 0; $msg = ""; $perf="";
+			$msg = "Overall virtual disk usage: ".$item->{'disk:usage'}." KB/s";
+			$perf = "usage=".($item->{'disk:usage'}*1024).";;;0; ";
+			foreach my $k ( @{$item->{devices_hd}} ) {
+				my $nam = devdesc($item,$k);
+				my $rlval = $item->{"virtualDisk:totalReadLatency:$k"};
+				my $wlval = $item->{"virtualDisk:totalWriteLatency:$k"};
+				my $rval = $item->{"virtualDisk:read:$k"};
+				my $wval = $item->{"virtualDisk:write:$k"};
+				$msg .= "\\n- $nam\\n-- r/w = $rval / $wval KB/s";
+				$msg .= "\\n-- latency = $rlval / $wlval ms";
+				if( $rlval >= threshold('latency','warn',[$name,'guests'])
+					or $wlval >= threshold('latency','warn',[$name,'guests']) ) {	
+					$status = 1 if(!$status);
+					$status = 2 if( $rlval >= threshold('latency','crit',[$name,'guests']) or $wlval >= threshold('latency','crit',[$name,'guests']) );
+					$msg .= "\\n--- Over threshold!";
 				}
-				$msg = "No disk issues." if(!$msg);
+				$perf .= devdesc($item,$k)."-r=".($rval*1024).";;;0; ";
+				$perf .= devdesc($item,$k)."-w=".($wval*1024).";;;0; ";
+				$perf .= devdesc($item,$k)."-latency-r=".($rlval/1000).";"
+					.threshold('latency','warn',[$name,'guests']).";"
+					.threshold('latency','crit',[$name,'guests']).";"
+					.";0; ";
+				$perf .= devdesc($item,$k)."-latency-w=".($wlval/1000).";"
+					.threshold('latency','warn',[$name,'guests']).";"
+					.threshold('latency','crit',[$name,'guests']).";"
+					.";0; ";
+			}
+			$msg = "No disk issues." if(!$msg);
 			} else {
 				$status=3;
-				$msg="No disk usage statistics available.\\nCheck virtual centre configuration.  This requires Level 2 statistics to be enabled.";
+				$msg="No disk usage statistics available.";
 			}
 			send_nagios_status($name,$servicedesc{guests}{disk},$status,"$msg|$perf");
 
 			# network usage by guest
 			if(defined $item->{'net:usage'}) {
-				$status = 0;  $perf="";
-				$msg = "Overall network usage: ".$item->{'net:usage'}." KB/s";
-				$perf = "usage=".($item->{'net:usage'}*1024).";;;0; ";
-				foreach my $k ( @{$item->{devices_net}} ) {
-					$msg .= "\\n- "
-						.devdesc($item,$k)
-						." : r/w = ".$item->{"net:received:$k"}
-						." / ".$item->{"net:transmitted:$k"}
-						." KB/s";
-					$perf .= devdesc($item,$k)."-r=".($item->{"net:received:$k"}*1024).";;;0; "
-						.devdesc($item,$k)."-w=".($item->{"net:transmitted:$k"}*1024).";;;0; ";
-				}
-				$msg = "No network issues." if(!$msg);
+			$status = 0;  $perf="";
+			$msg = "Overall network usage: ".$item->{'net:usage'}." KB/s";
+			$perf = "usage=".($item->{'net:usage'}*1024).";;;0; ";
+			foreach my $k ( @{$item->{devices_net}} ) {
+				$msg .= "\\n- "
+					.devdesc($item,$k)
+					." : r/w = ".$item->{"net:received:$k"}
+					." / ".$item->{"net:transmitted:$k"}
+					." KB/s";
+				$perf .= devdesc($item,$k)."-r=".($item->{"net:received:$k"}*1024).";;;0; "
+					.devdesc($item,$k)."-w=".($item->{"net:transmitted:$k"}*1024).";;;0; ";
+			}
+			$msg = "No network issues." if(!$msg);
 			} else {
 				$status=3;
-				$msg="No network usage statistics available.\\nCheck virtual centre configuration.  This requires Level 2 statistics to be enabled.";
+				$msg="No network usage statistics available.";
 			}
 			send_nagios_status($name,$servicedesc{guests}{net},$status,"$msg|$perf");
 
@@ -2643,13 +2478,17 @@ sub do_update_nagios() {
 	}
 }
 sub do_update() {
+	my $thr;
+
 	do_log(3,"MRTG update enabled:".$config{mrtg}{enable});
 	if( $config{mrtg}{enable} ) {
-		do_update_mrtg();
+		$thr = threads->create('do_update_mrtg');
+		do_log(2,"MRTG update thread ".$thr->tid()." started stack=".$thr->get_stack_size());
 	}
 	do_log(3,"Nagios update enabled:".$config{nagios}{enable});
 	if( $config{nagios}{enable} ) {
-		do_update_nagios();
+		$thr = threads->create('do_update_nagios');
+		do_log(2,"Nagios update thread ".$thr->tid()." started stack=".$thr->get_stack_size());
 	}
 }
 #############################################################################
@@ -2898,14 +2737,20 @@ sub write_cfg_type($) {
 	}
 }
 sub write_cfg() {
+	my $thr;
+
 	do_log(2,"Creating configuration files if necessary");
 	do_log(3,"MRTG: enable:".$config{'mrtg'}{'enable'}." cfg:".$config{mrtg}{cfg});
 	if( $config{'mrtg'}{'enable'} and $config{mrtg}{cfg} ) {
 		write_cfg_type('mrtg');
+#		$thr = threads->create('write_cfg_type','mrtg');
+#		do_log(2,"MRTG config file thread ".$thr->tid()." started stack=".$thr->get_stack_size());
 	}
 	do_log(3,"Nagios: enable:".$config{'nagios'}{'enable'}." cfg:".$config{nagios}{cfg});
 	if( $config{'nagios'}{'enable'} and $config{nagios}{cfg} ) {
 		write_cfg_type('nagios');
+#		$thr = threads->create('write_cfg_type','nagios');
+#		do_log(2,"Nagios config file thread ".$thr->tid()." started stack=".$thr->get_stack_size());
 	}
 }
 #############################################################################
@@ -2915,18 +2760,16 @@ if($ARGV[0] and ($ARGV[0] !~ /^-/)) {
 	$CFGFILE = shift @ARGV;
 }
 
-print "Using configuration file $CFGFILE\n" if($DEBUG);
 initialise();
+print "Using configuration file $CFGFILE\n" if($DEBUG);
 
 # If we're a daemon and not in debug mode, disassociate
 if( $config{'global'}{'daemon'} and !$DEBUG ) {
-	defined(my $pid = fork()) || die "can't fork: $!";
-	if( $pid ) { # non-zero now means I am the parent
-		print "Daemonising... goodbye!\n";
-		exit(0);
-	}
+	# print "Daemonising... goodbye!\n";
 	open(STDIN, "< /dev/null") || die "can't read /dev/null: $!";
 	open(STDOUT, "> /dev/null") || die "can't write to /dev/null: $!";
+	defined(my $pid = fork()) || die "can't fork: $!";
+	exit(0) if $pid; # non-zero now means I am the parent
 	(setsid() != -1) || die "Can't start a new session: $!";
 	open(STDERR, ">&STDOUT") || die "can't dup stdout: $!";
 }
@@ -2938,20 +2781,69 @@ write_pidfile()
 # For rotation
 my($lastrotate) = (localtime)[7];
 do {
+	my $dcarr = [];
+	my $clarr = [];
+	my $hoarr = [];
+	my $guarr = [];
+
 	$livestatuserr = 0;
 	$duplivestatuserr = 0;
 	$nscaerr = 0;
 
 	$start = time();
 	do_log(2,"Processing starts ".localtime());
+	clear_data();
 
-	fetch_data();
+	# Now, start a thread for each item in each VC
 
+	foreach $vmware ( @vmware ) {
+		do_log(2,"Processing virtualcentre ".$vmware->{hostname});
+		$perfmgr = $vmware->{perfmgr};
+		clear_data();
+		fetch_data();
+		push @$dcarr, @$datacenters;
+		push @$clarr, @$clusters;
+		push @$hoarr, @$hosts;
+		push @$guarr, @$guests;
+	}
+	$datacenters = $dcarr;
+	$clusters = $clarr;
+	$hosts = $hoarr;
+	$guests = $guarr;
+
+	# Now we wait for all the threads to finish.
+#	foreach my $thr ( threads->list(threads::all) ) {
+#		do_log(2,"Waiting for thread ".$thr->tid());
+#		my $rv = $thr->join();
+#		if($rv) { do_log(0,"Thread error: $rv"); }
+#	}
+
+	# Now start the output threads
+	share($datacenters); share($clusters); share($hosts); share($guests);
+	do_log(2,"Cfg threads start ".localtime());
 	write_cfg();
-
+	foreach my $thr ( threads->list(threads::all) ) {
+		my $rv;
+		do_log(2,"Waiting for thread ".$thr->tid());
+		eval {  $rv = $thr->join(); };
+		if($rv or $@) {
+			do_log(0,"Thread error: $rv: $@");
+		}
+	}
+	do_log(2,"Update threads start ".localtime());
 	do_update();
+	foreach my $thr ( threads->list(threads::all) ) {
+		my $rv;
+		do_log(2,"Waiting for thread ".$thr->tid());
+		eval {  $rv = $thr->join(); };
+		if($rv or $@) {
+			do_log(0,"Thread error: $rv: $@");
+		}
+	}
+	do_log(2,"All threads closed.");
 
 	clear_data(); # free up the memory
+	$dcarr = []; $clarr = []; $hoarr = []; $guarr = [];
 
 	if( $config{'global'}{'daemon'} ) {
 		# loop delay
@@ -2959,7 +2851,7 @@ do {
 			$delay = $config{'global'}{'frequency'} - (time - $start);
 			if( $delay > 0 ) {
 				do_log(2,"Cycle complete, sleeping for $delay seconds...");
-				alarm(0); # because this can break the sleep call
+				alarm(0);
 				sleep( $delay );
 			} else {
 				do_log(1,"Overran execution window by ".(0-$delay)." sec");
@@ -2983,11 +2875,6 @@ do {
 			$lastrotate = (localtime)[7];
 		  }
 		}
-	}
-	if( -M $CFGFILE < 0 ) {
-		$^T = time; # reset start time
-		do_log(1,"Re-loading configuration file due to changes");
-		initialise();
 	}
 } while( $config{'global'}{'daemon'} );
 

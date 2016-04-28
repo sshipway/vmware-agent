@@ -35,8 +35,9 @@ MRTG does not need to process these, but your frontend does.
 
 If you dont have Nagios, set enable=false in the [nagios] section; this also
 stops you from using livestatus to verify hostnames.  To use Nagios, you
-MUST have the livestatus module installed, 1.1.0 or later, preferably 1.2.0
-or later.
+MUST either have the livestatus module installed, 1.1.0 or later, preferably 1.2.0
+or later, and the Monitoring::Livestatus perl module, or else you can use
+NSCA to send status (not as efficient and prevents verification)
 
 If you have neither Nagios nor MRTG, then you can't use this.  Later versions
 may add additional output methods for other monitoring systems.
@@ -44,8 +45,11 @@ may add additional output methods for other monitoring systems.
 The pnp4nagios/unknown file contains a PNP4Nagios template to handle all the
 various graphs, assuming they have the 'unknown' command linked to them.
 
+The init.d subdir contains an init.d script for RedHat to start this as a
+daemon.
+
 TO DO:
-nsca and cmd fifo support for Nagios 
+cmd fifo support for Nagios 
 create rrd files via local RRDs
-detailed breakdown of host disk traffic, hba usage, network adaptor
-rather large memory requirements...
+deal with the rather large memory requirements...
+

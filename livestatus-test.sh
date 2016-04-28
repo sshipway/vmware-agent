@@ -2,10 +2,14 @@
 # Test livestatus looking for a host!
 
 TMP=/tmp/foo.$$
-#NAGIOS=nagcolprd01.its.auckland.ac.nz
 NAGIOS=localhost
-#HOST=raspi.its
 HOST=Nagios
+if [ "$1" = "-H" ]
+then	
+	shift
+	NAGIOS=$1
+	shift
+fi
 if [ "$1" != "" ]
 then
 	HOST=$1
@@ -16,6 +20,7 @@ Columns: address alias state
 Filter: host_name = $HOST
 
 _END_
+echo "Connecting to $NAGIOS:6557"
 cat $TMP
 echo ".----------------------------------------------------------------"
 cat $TMP| nc $NAGIOS 6557

@@ -3,7 +3,7 @@
 #
 # Author:       Steve Shipway <s.shipway@auckland.ac.nz>  
 #
-# chkconfig: - 98 02
+# chkconfig: - 99 01
 #
 # description: Collects statistics and information from Vmware and sends to
 #              Nagios, MRTG and others
@@ -13,13 +13,16 @@
 PATH=/usr/bin:/sbin:/bin:/usr/sbin
 export PATH
 
-[ -f /etc/sysconfig/vmware-agent ] && . /etc/sysconfig/vmware-agent
+SCRIPTNAME=`basename $0`
+
+[ -f /etc/sysconfig/$SCRIPTNAME ] && . /etc/sysconfig/$SCRIPTNAME
 CFGFILE=${CFGFILE-/etc/vmware-agent.cfg}
 AGENT=${AGENT-/usr/sbin/vmware-agent.pl}
 lockfile=${LOCKFILE-/var/run/vmware-agent.lck}
 pidfile=${PIDFILE-/var/run/vmware-agent.pid}
-loglevel=${LOGLEVEL-2}
-logfile=${LOGFILE-/var/log/vmware-agent.log}
+loglevel=${LOGLEVEL-0}
+logrotate=${LOGROTATE-d}
+logfile=${LOGFILE-/var/log/vmware-agent/agent.log}
 
 RETVAL=0
 
@@ -33,7 +36,17 @@ if status | grep -q -- '-p' 2>/dev/null; then
     pidopts="-p $pidfile"
 fi
 
-OPTS="--daemon --debug=0 --pidfile=$pidfile --logfile:enable=true --logfile:append=true --logfile:rotate=n --logfile:level=$loglevel --logfile:file=$logfile "
+OPTS="--daemon --debug=0 --pidfile=$pidfile "
+if [ "$logfile" != "" ]
+then
+  OPTS="$OPTS --logfile:enable=true --logfile:append=true --logfile:file=$logfile --logfile:rotate=$logrotate "
+fi
+if [ "$loglevel" != "" ]
+then
+  OPTS="$OPTS --logfile:level=$loglevel  "
+fi
+logdir=`dirname $logfile`
+[ -d $logdir ] || mkdir -p $logdir
 
 start() {
     echo -n $"Starting vmware-agent: "

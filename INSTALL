@@ -1,0 +1,9 @@
+To install under RedHat, run install.sh
+
+This will copy the files into /usr/local/sbin and /usr/local/etc
+
+It will install the init.d script under /etc/init.d but will not enable it.
+
+It will not install the pnp4nagios templates, nor will it configure the daemon.
+
+

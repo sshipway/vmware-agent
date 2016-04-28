@@ -3,7 +3,7 @@
 [% DEFAULT notifytime = '24x7' %]
 [% DEFAULT contactgroups = 'vmware-admins' %]
 [% DEFAULT servicegroup = 'vmware' %]
-[% SET freshness = config.global.frequency * 2 %]
+[% SET freshness = config.global.frequency * 4 %]
 [% SET attempts = 1 %]
 
 define host {
@@ -81,28 +81,45 @@ define host {
   [% END %]
 [% END %]
 
-# Check host/cluster/datacenter status
-define service {
-    service_description  [% servicedesc.hosts.status %]
-[% INCLUDE common %]
+[% BLOCK dependency %]
+[% IF config.nagios.vchost AND config.nagios.vcservice %]
+define servicedependency{
+       host_name                       [% config.nagios.vchost %]
+       service_description             [% config.nagios.vcservice %]
+       dependent_host_name             [% name %]
+       dependent_service_description   [% svc %]
+       execution_failure_criteria      u,c
+       notification_failure_criteria   u,c
 }
+[% END %]
+[% END %]
+
+# Check host/cluster/datacenter status
+#define service {
+#    service_description  [% servicedesc.hosts.status %]
+#[ % INCLUDE common % ]
+#}
+#[ % INCLUDE dependency svc=servicedesc.hosts.status % ]
 # Check host/cluster/datacenter alarms
 define service {
     service_description  [% servicedesc.hosts.alarms %]
 [% INCLUDE common %]
 }
+[% INCLUDE dependency svc=servicedesc.hosts.alarms %]
 # Check host/cluster/datacenter memory
 define service {
     service_description  [% servicedesc.hosts.memory %]
 [% INCLUDE common attempts=3 %]
 [% INCLUDE pnp %]
 }
+[% INCLUDE dependency svc=servicedesc.hosts.memory %]
 # Check host/cluster/datacenter CPU
 define service {
     service_description  [% servicedesc.hosts.cpu %]
 [% INCLUDE common attempts=3 %]
 [% INCLUDE pnp %]
 }
+[% INCLUDE dependency svc=servicedesc.hosts.cpu %]
 
 [% IF config.nagios.ntp != 'never' %]
 # Check host time synch
@@ -138,6 +155,9 @@ define service {
   [% END %] 
 }
 [% END %] 
+[% IF config.nagios.ntp == 1 %]
+[% INCLUDE dependency svc=servicedesc.hosts.time %]
+[% END %] 
 
 # Check network
 define service {
@@ -145,15 +165,18 @@ define service {
 [% INCLUDE common %]
 [% INCLUDE pnp %]
 }
+[% INCLUDE dependency svc=servicedesc.hosts.net %]
 # check disk
 define service {
     service_description  [% servicedesc.hosts.disk %]
 [% INCLUDE common %]
 [% INCLUDE pnp %]
 }
+[% INCLUDE dependency svc=servicedesc.hosts.disk %]
 # Information
 define service {
     service_description  [% servicedesc.hosts.info %]
 [% INCLUDE common %]
 }
+[% INCLUDE dependency svc=servicedesc.hosts.info %]
 

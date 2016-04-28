@@ -3,7 +3,7 @@
 [% DEFAULT notifytime = '24x7' %]
 [% DEFAULT contactgroups = 'vmware-admins' %]
 [% DEFAULT servicegroup = 'vmware' %]
-[% SET freshness = config.global.frequency * 2 %]
+[% SET freshness = config.global.frequency * 4 %]
 [% SET attempts = 1 %]
 
 define host {
@@ -75,11 +75,25 @@ define host {
   [% END %]
 [% END %]
 
+[% BLOCK dependency %]
+[% IF config.nagios.vchost AND config.nagios.vcservice %]
+define servicedependency{
+       host_name                       [% config.nagios.vchost %]
+       service_description             [% config.nagios.vcservice %]
+       dependent_host_name             [% name %]
+       dependent_service_description   [% svc %]
+       execution_failure_criteria      u,c
+       notification_failure_criteria   u,c
+}
+[% END %]
+[% END %]
+
 # Check host/cluster/datacenter status
 define service {
     service_description  [% servicedesc.datacenters.alarms %]
     [% INCLUDE common %]
 }
+[% INCLUDE dependency svc=servicedesc.datacenters.alarms %]
 
 # Datastore details
 [% IF config.datacenters.datastores %]
@@ -89,6 +103,8 @@ define service {
     [% INCLUDE common %]
     [% INCLUDE pnp %]
 }
+[% SET svc = servicedesc.datacenters.alarms _ ": $ds" %]
+[% INCLUDE dependency %]
   [% END %]
 [% END %]
 
