@@ -1,0 +1,10 @@
+/var/log/vmware-agent.log {
+  daily
+  missingok
+  notifempty
+  create 0644 
+  sharedscripts
+    rotate 7
+    compress
+    delaycompress
+}

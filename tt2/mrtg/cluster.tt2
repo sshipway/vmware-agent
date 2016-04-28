@@ -1,0 +1,98 @@
+# MRTG configuration for VMWare cluster
+
+# Check host/cluster/datacenter count of VMs
+# Check host/cluster/datacenter memory/cpu usage
+# Check host/cluster/datacenter fairness
+# Check host/cluster/datacenter disk space
+
+[% config.mrtg.cfgheader %]
+
+routers.cgi*Desc: Cluster [% this.name %]
+routers.cgi*ShortDesc: [% this.name %]
+routers.cgi*Icon: vmware-sm.gif
+
+routers.cgi*Mode[_]: generic
+
+# Resources graph
+Target[[% name %]-[% rrdfiles.clusters.resources %]]: dummy
+Title[[% name %]-[% rrdfiles.clusters.resources %]]: [% this.name %] Resource Usage
+MaxBytes[[% name %]-[% rrdfiles.clusters.resources %]]: 100
+PageTop[[% name %]-[% rrdfiles.clusters.resources %]]: null
+LegendI[[% name %]-[% rrdfiles.clusters.resources %]]: cpu:
+LegendO[[% name %]-[% rrdfiles.clusters.resources %]]: mem:
+Options[[% name %]-[% rrdfiles.clusters.resources %]]: gauge growright
+Ylegend[[% name %]-[% rrdfiles.clusters.resources %]]: percent
+ShortLegend[[% name %]-[% rrdfiles.clusters.resources %]]: %
+Legend1[[% name %]-[% rrdfiles.clusters.resources %]]: CPU utilisation
+Legend2[[% name %]-[% rrdfiles.clusters.resources %]]: Memory utilisation
+Legend3[[% name %]-[% rrdfiles.clusters.resources %]]: Peak CPU utilisation
+Legend4[[% name %]-[% rrdfiles.clusters.resources %]]: Peak memory utilisation
+routers.cgi*ShortDesc[[% name %]-[% rrdfiles.clusters.resources %]]: Resources 
+routers.cgi*Options[[% name %]-[% rrdfiles.clusters.resources %]]: fixunit nototal nopercent
+routers.cgi*Icon[[% name %]-[% rrdfiles.clusters.resources %]]: chip-sm.gif
+routers.cgi*InMenu[[% name %]-[% rrdfiles.clusters.resources %]]: yes
+routers.cgi*InCompact[[% name %]-[% rrdfiles.clusters.resources %]]: yes
+routers.cgi*InSummary[[% name %]-[% rrdfiles.clusters.resources %]]: yes
+
+# VMs active
+Target[[% name %]-[% rrdfiles.clusters.active %]]: dummy
+Title[[% name %]-[% rrdfiles.clusters.active %]]: [% this.name %]  Active Guests
+MaxBytes[[% name %]-[% rrdfiles.clusters.active %]]: 100000
+PageTop[[% name %]-[% rrdfiles.clusters.active %]]: null
+LegendI[[% name %]-[% rrdfiles.clusters.active %]]: active :
+LegendO[[% name %]-[% rrdfiles.clusters.active %]]: defined:
+Options[[% name %]-[% rrdfiles.clusters.active %]]: gauge growright integer
+Ylegend[[% name %]-[% rrdfiles.clusters.active %]]: Guests
+ShortLegend[[% name %]-[% rrdfiles.clusters.active %]]: &nbsp;
+Legend1[[% name %]-[% rrdfiles.clusters.active %]]: Active guests
+Legend2[[% name %]-[% rrdfiles.clusters.active %]]: Defined guests
+Legend3[[% name %]-[% rrdfiles.clusters.active %]]: Peak active guests
+Legend4[[% name %]-[% rrdfiles.clusters.active %]]: Peak defined guests
+routers.cgi*ShortDesc[[% name %]-[% rrdfiles.clusters.active %]]: Guests 
+routers.cgi*Options[[% name %]-[% rrdfiles.clusters.active %]]: fixunit nototal nopercent nomax
+routers.cgi*Icon[[% name %]-[% rrdfiles.clusters.active %]]: server-sm.gif
+routers.cgi*InMenu[[% name %]-[% rrdfiles.clusters.active %]]: yes
+routers.cgi*InCompact[[% name %]-[% rrdfiles.clusters.active %]]: yes
+routers.cgi*InSummary[[% name %]-[% rrdfiles.clusters.active %]]: yes
+
+# Datastores
+Target[[% name %]-[% rrdfiles.clusters.datastores %]]: dummy
+Title[[% name %]-[% rrdfiles.clusters.datastores %]]: [% this.name %]  Datastores
+MaxBytes[[% name %]-[% rrdfiles.clusters.datastores %]]: 1000000000000000
+PageTop[[% name %]-[% rrdfiles.clusters.datastores %]]: null
+LegendI[[% name %]-[% rrdfiles.clusters.datastores %]]: used :
+LegendO[[% name %]-[% rrdfiles.clusters.datastores %]]: total:
+Options[[% name %]-[% rrdfiles.clusters.datastores %]]: gauge growright dorelpercent
+Ylegend[[% name %]-[% rrdfiles.clusters.datastores %]]: Percent
+ShortLegend[[% name %]-[% rrdfiles.clusters.datastores %]]: %
+Legend1[[% name %]-[% rrdfiles.clusters.datastores %]]: Space used
+Legend2[[% name %]-[% rrdfiles.clusters.datastores %]]: Space available
+Legend3[[% name %]-[% rrdfiles.clusters.datastores %]]: Peak space used
+Legend4[[% name %]-[% rrdfiles.clusters.datastores %]]: Peak space available
+routers.cgi*ShortDesc[[% name %]-[% rrdfiles.clusters.datastores %]]: VMware: Datastores 
+routers.cgi*Options[[% name %]-[% rrdfiles.clusters.datastores %]]: fixunit nototal nopercent
+routers.cgi*Icon[[% name %]-[% rrdfiles.clusters.datastores %]]: disk-sm.gif
+routers.cgi*InMenu[[% name %]-[% rrdfiles.clusters.datastores %]]: yes
+routers.cgi*InCompact[[% name %]-[% rrdfiles.clusters.datastores %]]: yes
+routers.cgi*InSummary[[% name %]-[% rrdfiles.clusters.datastores %]]: yes
+
+# Fairness
+Target[[% name %]-[% rrdfiles.clusters.fairness %]]: dummy
+Title[[% name %]-[% rrdfiles.clusters.fairness %]]: [% this.name %] Balance
+MaxBytes[[% name %]-[% rrdfiles.clusters.fairness %]]: 100000
+PageTop[[% name %]-[% rrdfiles.clusters.fairness %]]: null
+LegendI[[% name %]-[% rrdfiles.clusters.fairness %]]: balance:
+LegendO[[% name %]-[% rrdfiles.clusters.fairness %]]: target :
+Options[[% name %]-[% rrdfiles.clusters.fairness %]]: gauge growright nomax
+Ylegend[[% name %]-[% rrdfiles.clusters.fairness %]]: Balance
+ShortLegend[[% name %]-[% rrdfiles.clusters.fairness %]]: &nbsp;
+WithPeak[[% name %]-[% rrdfiles.clusters.fairness %]]: none
+Legend1[[% name %]-[% rrdfiles.clusters.fairness %]]: Fairness
+Legend2[[% name %]-[% rrdfiles.clusters.fairness %]]: Target
+routers.cgi*ShortDesc[[% name %]-[% rrdfiles.clusters.fairness %]]: VMware: Balance 
+routers.cgi*Options[[% name %]-[% rrdfiles.clusters.fairness %]]: fixunit nototal nopercent nomax
+routers.cgi*Icon[[% name %]-[% rrdfiles.clusters.fairness %]]: target-sm.gif
+routers.cgi*InMenu[[% name %]-[% rrdfiles.clusters.fairness %]]: yes
+routers.cgi*InCompact[[% name %]-[% rrdfiles.clusters.fairness %]]: no
+routers.cgi*InSummary[[% name %]-[% rrdfiles.clusters.fairness %]]: yes
+

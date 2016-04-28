@@ -1,0 +1,121 @@
+# VMWare cluster checks
+
+[% DEFAULT notifytime = '24x7' %]
+[% DEFAULT contactgroups = 'vmware-admins' %]
+[% DEFAULT servicegroup = 'vmware' %]
+[% SET freshness = config.global.frequency * 2 %]
+[% SET attempts = 1 %]
+
+define host {
+	host_name				[% name %]
+	alias					VMware cluster [% this.name %]
+	address					127.0.0.1
+	max_check_attempts		1
+	check_period			24x7
+    check_command           unknown!Check the vmware agent is running
+  [% IF contactgroups %]
+	contact_groups			[% contactgroups %]
+  [% END %]
+	notifications_enabled	1
+	process_perf_data		0
+	retain_status_information	0
+	notification_period		24x7
+	notification_interval	120
+	check_interval			60
+	active_checks_enabled	0
+	passive_checks_enabled	1
+	check_freshness			1
+	freshness_threshold		[% freshness %]
+  [% IF hosts %]
+	parents 				[% join(',',hosts) %]
+  [% END %]
+    hostgroups              vmware,vmware_cluster
+  [% IF datacenter %]
+    _vmdatacenter           [% datacenter %]
+  [% END %]
+  [% IF config.nagios.pnp_host_action_url %]
+    action_url              [% config.nagios.pnp_host_action_url %]
+  [% ELSE %]
+[% IF moid %]
+        action_url       https://[% virtualcentre %]/mob/?moid=[% moid %]
+[% END %]
+  [% END %]
+[% IF config.mrtg.routers2_url %]
+        notes_url  [% config.mrtg.routers2_url %]?cfg=.vmware/cluster/[% name %].cfg
+[% END %]
+	    icon_image      vmware.gif
+        icon_image_alt  VMWare ESX
+}
+
+[% BLOCK common %]
+    host_name              [% name %]
+    check_command          unknown!Check vmware agent
+    notifications_enabled  1
+    notification_interval  120
+    is_volatile            0
+    check_period           24x7
+    normal_check_interval  10
+    retry_check_interval   5
+    max_check_attempts     [% attempts %]
+    check_freshness        1
+    freshness_threshold    [% freshness %]
+    active_checks_enabled  0
+    passive_checks_enabled 1
+    flap_detection_enabled 0
+    notification_options   w,c,r
+  [% IF servicegroup %]
+    servicegroups          [% servicegroup %]
+  [% END %]
+  [% IF contactgroups %]
+    contact_groups         [% contactgroups %]
+  [% END %] 
+  [% IF notifytime %]
+    notification_period    [% notifytime %]
+  [% END %] 
+[% END %]
+[% BLOCK pnp %]
+  [% IF config.nagios.pnp_host_action_url %]
+    action_url              [% config.nagios.pnp_svc_action_url %]
+  [% END %]
+[% END %]
+
+# Check host/cluster/datacenter alarms
+define service {
+    service_description  [% servicedesc.clusters.alarms %]
+[% INCLUDE common %]
+}
+
+# Check host/cluster/datacenter memory
+define service {
+    service_description  [% servicedesc.clusters.memory %]
+[% INCLUDE common attempts=3 %]
+[% INCLUDE pnp %]
+}
+# Check host/cluster/datacenter CPU
+define service {
+    service_description  [% servicedesc.clusters.cpu %]
+[% INCLUDE common attempts=3 %]
+[% INCLUDE pnp %]
+}
+# Fairness for DRS
+define service {
+    service_description  [% servicedesc.clusters.fairness %]
+[% INCLUDE common attempts=4 %]
+}
+# Check host/cluster/datacenter disk space
+[% IF config.clusters.datastores %]
+  [% FOREACH ds IN datastores %]
+define service {
+    service_description  [% servicedesc.clusters.datastore %]: [% ds %]
+    [% INCLUDE common %]
+[% INCLUDE pnp %]
+}
+  [% END %]
+[% ELSE %]
+define service {
+    service_description  [% servicedesc.clusters.datastores %]
+    [% INCLUDE common %]
+[% INCLUDE pnp %]
+}
+[% END %]
+

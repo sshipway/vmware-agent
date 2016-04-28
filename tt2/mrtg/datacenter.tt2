@@ -1,0 +1,86 @@
+# MRTG configuration for VMWare cluster
+
+# Check host/cluster/datacenter count of VMs
+
+[% config.mrtg.cfgheader %]
+
+routers.cgi*Desc: Datacenter [% this.name %]
+routers.cgi*ShortDesc: [% this.name %]
+routers.cgi*Icon: vmware-sm.gif
+
+routers.cgi*Mode[_]: generic
+
+# VMs active
+Target[[% name %]-[% rrdfiles.datacenters.active %]]: dummy
+Title[[% name %]-[% rrdfiles.datacenters.active %]]: [% this.name %] Active Guests
+MaxBytes[[% name %]-[% rrdfiles.datacenters.active %]]: 100000
+PageTop[[% name %]-[% rrdfiles.datacenters.active %]]: null
+LegendI[[% name %]-[% rrdfiles.datacenters.active %]]: active :
+LegendO[[% name %]-[% rrdfiles.datacenters.active %]]: defined:
+Options[[% name %]-[% rrdfiles.datacenters.active %]]: gauge growright integer
+Ylegend[[% name %]-[% rrdfiles.datacenters.active %]]: Guests
+ShortLegend[[% name %]-[% rrdfiles.datacenters.active %]]: &nbsp;
+Legend1[[% name %]-[% rrdfiles.datacenters.active %]]: Active guests
+Legend2[[% name %]-[% rrdfiles.datacenters.active %]]: Defined guests
+Legend3[[% name %]-[% rrdfiles.datacenters.active %]]: Peak active guests
+Legend4[[% name %]-[% rrdfiles.datacenters.active %]]: Peak defined guests
+routers.cgi*ShortDesc[[% name %]-[% rrdfiles.datacenters.active %]]: Guests 
+routers.cgi*Options[[% name %]-[% rrdfiles.datacenters.active %]]: fixunit nototal nopercent nomax
+routers.cgi*Icon[[% name %]-[% rrdfiles.datacenters.active %]]: server-sm.gif
+routers.cgi*InMenu[[% name %]-[% rrdfiles.datacenters.active %]]: yes
+routers.cgi*InCompact[[% name %]-[% rrdfiles.datacenters.active %]]: no
+routers.cgi*InSummary[[% name %]-[% rrdfiles.datacenters.active %]]: yes
+
+[% IF config.datacenters.datastores %]
+# Datastore usage detail
+  [% FOREACH ds IN datastores %]
+Target[[% name %]-[% rrdfiles.datacenters.datastore %]-[% ds.name %]]: dummy
+Title[[% name %]-[% rrdfiles.datacenters.datastore %]-[% ds.name %]]: [% ds.name %] usage
+MaxBytes[[% name %]-[% rrdfiles.datacenters.datastore %]-[% ds.name %]]: [% ds.summary.capacity %]
+PageTop[[% name %]-[% rrdfiles.datacenters.datastore %]-[% ds.name %]]: null
+LegendI[[% name %]-[% rrdfiles.datacenters.datastore %]-[% ds.name %]]: used :
+Options[[% name %]-[% rrdfiles.datacenters.datastore %]-[% ds.name %]]: gauge growright noo
+Ylegend[[% name %]-[% rrdfiles.datacenters.datastore %]-[% ds.name %]]: Usage
+ShortLegend[[% name %]-[% rrdfiles.datacenters.datastore %]-[% ds.name %]]: b
+Legend1[[% name %]-[% rrdfiles.datacenters.datastore %]-[% ds.name %]]: Usage
+Legend3[[% name %]-[% rrdfiles.datacenters.datastore %]-[% ds.name %]]: Peak usage
+routers.cgi*ShortDesc[[% name %]-[% rrdfiles.datacenters.datasore %]-[% ds.name %]]: Datastore: [% ds.name %]
+routers.cgi*Options[[% name %]-[% rrdfiles.datacenters.datastore %]-[% ds.name %]]: nototal 
+routers.cgi*Icon[[% name %]-[% rrdfiles.datacenters.datastore %]-[% ds.name %]]: disk-sm.gif
+routers.cgi*InMenu[[% name %]-[% rrdfiles.datacenters.datastore %]-[% ds.name %]]: no
+routers.cgi*InCompact[[% name %]-[% rrdfiles.datacenters.datastore %]-[% ds.name %]]: yes
+routers.cgi*InSummary[[% name %]-[% rrdfiles.datacenters.datastore %]-[% ds.name %]]: no
+routers.cgi*Graph[[% name %]-[% rrdfiles.datacenters.datastore %]-[% ds.name %]]: [% name %]_DS nototal average 
+  [% END %]
+
+routers.cgi*Title[[% name %]_DS]: [% this.name %] Datastore usage
+routers.cgi*ShortDesc[[% name %]_DS]: Datastores
+routers.cgi*Options[[% name %]_DS]: aspercent
+routers.cgi*InMenu[[% name %]_DS]: yes
+routers.cgi*InSummary[[% name %]_DS]: yes
+[% ELSE %]
+# Datastore usage summary
+Target[[% name %]-[% rrdfiles.datacenters.datastores %]]: dummy
+Title[[% name %]-[% rrdfiles.datacenters.datastores %]]: [% this.name %] Datastore usage
+MaxBytes[[% name %]-[% rrdfiles.datacenters.datastores %]]: 1000000000000000
+PageTop[[% name %]-[% rrdfiles.datacenters.datastores %]]: null
+LegendI[[% name %]-[% rrdfiles.datacenters.datastores %]]: used:
+Options[[% name %]-[% rrdfiles.datacenters.datastores %]]: gauge growright noo dorelpercent
+Ylegend[[% name %]-[% rrdfiles.datacenters.datastores %]]: Usage
+ShortLegend[[% name %]-[% rrdfiles.datacenters.datastores %]]: %
+Legend1[[% name %]-[% rrdfiles.datacenters.datastores %]]: Usage
+Legend3[[% name %]-[% rrdfiles.datacenters.datastores %]]: Peak usage
+routers.cgi*ShortDesc[[% name %]-[% rrdfiles.datacenters.datasores %]]: Datastores
+routers.cgi*Options[[% name %]-[% rrdfiles.datacenters.datastores %]]: fixunit nototal nopercent dorelpercent
+routers.cgi*Icon[[% name %]-[% rrdfiles.datacenters.datastores %]]: disk-sm.gif
+routers.cgi*InMenu[[% name %]-[% rrdfiles.datacenters.datastores %]]: yes
+routers.cgi*InCompact[[% name %]-[% rrdfiles.datacenters.datastores %]]: yes
+routers.cgi*InSummary[[% name %]-[% rrdfiles.datacenters.datastores %]]: yes
+[% END %]
+
+[% IF config.datacenters.network %]
+# Network traffic detail
+  [% FOREACH i IN interfaces %]
+#Target[[% name %]-[% rrdfiles.datacenters.interface %]-[% i.name %]]: dummy
+  [% END %]
+[% END %]

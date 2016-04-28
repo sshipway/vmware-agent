@@ -1,0 +1,148 @@
+# Nagios guest configuration
+
+[% DEFAULT notifytime = '24x7' %]
+[% DEFAULT contactgroups = 'vmware-admins' %]
+[% DEFAULT servicegroup = 'vmware' %]
+[% SET freshness = config.global.frequency * 2 %]
+[% SET attempts = 1 %]
+
+[% IF config.nagios.guest_with_host %]
+define host {
+    host_name               [% name %]
+    alias                   VMware guest [% fqdn %]
+  [% IF ip %]
+    address                 [% ip %]
+  [% ELSE %]
+	address                 127.0.0.1
+  [% END %]
+    max_check_attempts      2
+    check_period            24x7
+    check_command           check-host-alive
+    check_freshness        1
+    freshness_threshold    [% freshness %]
+  [% IF contactgroups %]
+    contact_groups          [% contactgroups %]
+  [% END %]
+    notifications_enabled   1
+    process_perf_data       0
+    retain_status_information 1
+    notification_period     24x7
+    notification_interval   120
+    check_interval          5
+    active_checks_enabled   0
+    passive_checks_enabled  1
+  [% IF cluster and config.global.clusters %]
+	parents                 [% cluster %]
+	_vmcluster              [% cluster %]
+  [% END %]
+  [% IF datacenter and config.global.datacenters %]
+	_vmdatacenter           [% datacenter %]
+  [% END %]
+  [% IF config.nagios.pnp_host_action_url %]
+    action_url              [% config.nagios.pnp_host_action_url %]
+  [% ELSE %]
+[% IF moid %]
+        action_url       https://[% virtualcentre %]/mob/?moid=[% moid %]
+[% END %]
+  [% END %]
+[% IF config.mrtg.routers2_url %]
+        notes_url  [% config.mrtg.routers2_url %]?cfg=.vmware/guest/[% fqdn %].cfg
+[% END %]
+[% IF this.guest.guestFullName.match('[Ww]indows') %]
+        icon_image      win40.gif
+		statusmap_image win40.gd2
+        icon_image_alt  [% this.guest.guestFullName %]
+[% ELSIF this.guest.guestFullName.match('[Ll]inux|CentOS|Ubuntu|Debian|Red[Hh]at') %]
+        icon_image      linux40.gif
+		statusmap_image linux40.gd2
+        icon_image_alt  [% this.guest.guestFullName %]
+[% ELSIF this.guest.guestFullName.match('[Ss]olaris|[Ss]un') %]
+        icon_image      sun40.gif
+		statusmap_image sun40.gd2
+        icon_image_alt  [% this.guest.guestFullName %]
+[% ELSE %]
+        icon_image      unknown.gif
+		statusmap_image unknown.gd2
+  [% IF this.guest.guestFullName %]
+        icon_image_alt  [% this.guest.guestFullName %]
+  [% ELSE %]
+        icon_image_alt  Unknown OS
+  [% END %]
+[% END %]
+}
+
+[% END %]
+
+[% BLOCK common %]
+    host_name              [% name %]
+    check_command          unknown!Check that vmware agent is running
+    notifications_enabled  1
+    notification_interval  120
+    is_volatile            0
+    check_period           24x7
+    normal_check_interval  10
+    retry_check_interval   5
+    max_check_attempts     [% attempts %]
+    check_freshness        1
+    freshness_threshold    [% freshness %]
+    active_checks_enabled  0
+    passive_checks_enabled 1
+    flap_detection_enabled 0
+    notification_options   w,c,r
+  [% IF servicegroup %]
+    servicegroups          [% servicegroup %]
+  [% END %]
+  [% IF contactgroups %]
+    contact_groups         [% contactgroups %]
+  [% END %] 
+  [% IF notifytime %]
+    notification_period    [% notifytime %]
+  [% END %] 
+[% END %]
+[% BLOCK pnp %]
+  [% IF config.nagios.pnp_host_action_url %]
+    action_url              [% config.nagios.pnp_svc_action_url %]
+  [% END %]
+[% END %]
+
+# Check status
+define service {
+    service_description  [% servicedesc.guests.status %]
+[% INCLUDE common %]
+}
+# Check alarms
+define service {
+    service_description  [% servicedesc.guests.alarms %]
+[% INCLUDE common %]
+}
+# Check memory
+define service {
+    service_description  [% servicedesc.guests.memory %]
+[% INCLUDE common attempts=3 %]
+[% INCLUDE pnp %]
+}
+# Check CPU
+define service {
+    service_description  [% servicedesc.guests.cpu %]
+[% INCLUDE common attempts=3 %]
+[% INCLUDE pnp %]
+}
+# Check network
+define service {
+    service_description  [% servicedesc.guests.net %]
+[% INCLUDE common %]
+[% INCLUDE pnp %]
+}
+# check disk
+define service {
+    service_description  [% servicedesc.guests.disk %]
+[% INCLUDE common %]
+[% INCLUDE pnp %]
+}
+# Information
+define service {
+    service_description  [% servicedesc.guests.info %]
+[% INCLUDE common %]
+}
+
+

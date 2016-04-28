@@ -1,0 +1,120 @@
+# MRTG configuration for VMWare host
+
+# Check host/cluster/datacenter count of VMs
+# Check host/cluster/datacenter memory/cpu usage
+# Check host/cluster/datacenter fairness
+# Check host/cluster/datacenter disk space
+
+[% config.mrtg.cfgheader %]
+
+routers.cgi*Desc: Host [% fqdn %]
+routers.cgi*ShortDesc: [% name %]
+routers.cgi*Icon: vmware-sm.gif
+
+routers.cgi*Mode[_]: generic
+
+# Resources graph
+Target[[% fqdn %]-[% rrdfiles.hosts.resources %]]: dummy
+Title[[% fqdn %]-[% rrdfiles.hosts.resources %]]: [% name %] Resource Usage
+MaxBytes[[% fqdn %]-[% rrdfiles.hosts.resources %]]: 100
+PageTop[[% fqdn %]-[% rrdfiles.hosts.resources %]]: null
+LegendI[[% fqdn %]-[% rrdfiles.hosts.resources %]]: cpu:
+LegendO[[% fqdn %]-[% rrdfiles.hosts.resources %]]: mem:
+Options[[% fqdn %]-[% rrdfiles.hosts.resources %]]: gauge growright
+Ylegend[[% fqdn %]-[% rrdfiles.hosts.resources %]]: percent
+ShortLegend[[% fqdn %]-[% rrdfiles.hosts.resources %]]: %
+Legend1[[% fqdn %]-[% rrdfiles.hosts.resources %]]: CPU utilisation
+Legend2[[% fqdn %]-[% rrdfiles.hosts.resources %]]: Memory utilisation
+Legend3[[% fqdn %]-[% rrdfiles.hosts.resources %]]: Peak CPU utilisation
+Legend4[[% fqdn %]-[% rrdfiles.hosts.resources %]]: Peak memory utilisation
+routers.cgi*ShortDesc[[% fqdn %]-[% rrdfiles.hosts.resources %]]: Resources 
+routers.cgi*Options[[% fqdn %]-[% rrdfiles.hosts.resources %]]: fixunit nototal nopercent
+routers.cgi*Icon[[% fqdn %]-[% rrdfiles.hosts.resources %]]: chip-sm.gif
+routers.cgi*InMenu[[% fqdn %]-[% rrdfiles.hosts.resources %]]: yes
+routers.cgi*InCompact[[% fqdn %]-[% rrdfiles.hosts.resources %]]: yes
+routers.cgi*InSummary[[% fqdn %]-[% rrdfiles.hosts.resources %]]: yes
+
+# VMs active
+Target[[% fqdn %]-[% rrdfiles.hosts.active %]]: dummy
+Title[[% fqdn %]-[% rrdfiles.hosts.active %]]: [% name %]  Active Guests
+MaxBytes[[% fqdn %]-[% rrdfiles.hosts.active %]]: 100000
+PageTop[[% fqdn %]-[% rrdfiles.hosts.active %]]: null
+LegendI[[% fqdn %]-[% rrdfiles.hosts.active %]]: active :
+LegendO[[% fqdn %]-[% rrdfiles.hosts.active %]]: defined:
+Options[[% fqdn %]-[% rrdfiles.hosts.active %]]: gauge growright integer
+Ylegend[[% fqdn %]-[% rrdfiles.hosts.active %]]: Guests
+ShortLegend[[% fqdn %]-[% rrdfiles.hosts.active %]]: &nbsp;
+Legend1[[% fqdn %]-[% rrdfiles.hosts.active %]]: Active guests
+Legend2[[% fqdn %]-[% rrdfiles.hosts.active %]]: Defined guests
+Legend3[[% fqdn %]-[% rrdfiles.hosts.active %]]: Peak active guests
+Legend4[[% fqdn %]-[% rrdfiles.hosts.active %]]: Peak defined guests
+routers.cgi*ShortDesc[[% fqdn %]-[% rrdfiles.hosts.active %]]: Guests 
+routers.cgi*Options[[% fqdn %]-[% rrdfiles.hosts.active %]]: fixunit nototal nopercent nomax
+routers.cgi*Icon[[% fqdn %]-[% rrdfiles.hosts.active %]]: server-sm.gif
+routers.cgi*InMenu[[% fqdn %]-[% rrdfiles.hosts.active %]]: yes
+routers.cgi*InCompact[[% fqdn %]-[% rrdfiles.hosts.active %]]: yes
+routers.cgi*InSummary[[% fqdn %]-[% rrdfiles.hosts.active %]]: yes
+
+# Disk activity
+[% IF config.hosts.datastores %]
+# Individual disks
+[% FOREACH dsk IN disks %]
+[% END %]
+# disk [% dsk %]
+[% END %]
+Target[[% fqdn %]-[% rrdfiles.hosts.disk %]]: dummy
+Title[[% fqdn %]-[% rrdfiles.hosts.disk %]]: [% name %] Disk Activity
+PageTop[[% fqdn %]-[% rrdfiles.hosts.disk %]]: null
+MaxBytes[[% fqdn %]-[% rrdfiles.hosts.disk %]]: 128000000000
+LegendI[[% fqdn %]-[% rrdfiles.hosts.disk %]]: total:
+Options[[% fqdn %]-[% rrdfiles.hosts.disk %]]: gauge growright noo
+ShortLegend[[% fqdn %]-[% rrdfiles.hosts.disk %]]: B/s
+Legend1[[% fqdn %]-[% rrdfiles.hosts.disk %]]: Usage
+Legend3[[% fqdn %]-[% rrdfiles.hosts.disk %]]: Peak Usage
+routers.cgi*ShortDesc[[% fqdn %]-[% rrdfiles.hosts.disk %]]: Disk
+routers.cgi*Icon[[% fqdn %]-[% rrdfiles.hosts.disk %]]: disk-sm.gif
+routers.cgi*InMenu[[% fqdn %]-[% rrdfiles.hosts.disk %]]: yes
+routers.cgi*InSummary[[% fqdn %]-[% rrdfiles.hosts.disk %]]: yes
+routers.cgi*Options[[% fqdn %]-[% rrdfiles.hosts.disk %]]: nopercent nomax
+
+# Network activity
+[% IF config.hosts.network %]
+# Individual interfaces
+[% FOREACH iface IN interfaces %]
+[% END %]
+# interface [% iface %]
+[% END %]
+Target[[% fqdn %]-[% rrdfiles.hosts.net %]]: dummy
+Title[[% fqdn %]-[% rrdfiles.hosts.net %]]: [% name %] Network traffic
+PageTop[[% fqdn %]-[% rrdfiles.hosts.net %]]: null
+MaxBytes[[% fqdn %]-[% rrdfiles.hosts.net %]]: 12800000000
+LegendI[[% fqdn %]-[% rrdfiles.hosts.net %]]: total:
+Options[[% fqdn %]-[% rrdfiles.hosts.net %]]: gauge growright bits noo
+ShortLegend[[% fqdn %]-[% rrdfiles.hosts.net %]]: b/s
+Legend1[[% fqdn %]-[% rrdfiles.hosts.net %]]: Traffic
+Legend3[[% fqdn %]-[% rrdfiles.hosts.net %]]: Peak Traffic
+routers.cgi*ShortDesc[[% fqdn %]-[% rrdfiles.hosts.net %]]: Network
+routers.cgi*Icon[[% fqdn %]-[% rrdfiles.hosts.net %]]: interface-sm.gif
+routers.cgi*InMenu[[% fqdn %]-[% rrdfiles.hosts.net %]]: yes
+routers.cgi*InSummary[[% fqdn %]-[% rrdfiles.hosts.net %]]: yes
+routers.cgi*Options[[% fqdn %]-[% rrdfiles.hosts.net %]]: nopercent nomax
+
+# Memory swapping in/out
+Target[[% fqdn %]-[% rrdfiles.hosts.swap %]]: dummy
+Title[[% fqdn %]-[% rrdfiles.hosts.swap %]]: [% name %] Swap activity
+PageTop[[% fqdn %]-[% rrdfiles.hosts.swap %]]: null
+MaxBytes[[% fqdn %]-[% rrdfiles.hosts.swap %]]: 12800000000
+LegendI[[% fqdn %]-[% rrdfiles.hosts.swap %]]: in :
+LegendO[[% fqdn %]-[% rrdfiles.hosts.swap %]]: out:
+Options[[% fqdn %]-[% rrdfiles.hosts.swap %]]: gauge growright
+ShortLegend[[% fqdn %]-[% rrdfiles.hosts.swap %]]: b/s
+Legend1[[% fqdn %]-[% rrdfiles.hosts.swap %]]: Swap in
+Legend2[[% fqdn %]-[% rrdfiles.hosts.swap %]]: Swap out
+Legend3[[% fqdn %]-[% rrdfiles.hosts.swap %]]: Peak swap in
+Legend4[[% fqdn %]-[% rrdfiles.hosts.swap %]]: Peak swap out
+routers.cgi*ShortDesc[[% fqdn %]-[% rrdfiles.hosts.swap %]]: Swap
+routers.cgi*Icon[[% fqdn %]-[% rrdfiles.hosts.swap %]]: disk-sm.gif
+routers.cgi*InMenu[[% fqdn %]-[% rrdfiles.hosts.swap %]]: yes
+routers.cgi*InSummary[[% fqdn %]-[% rrdfiles.hosts.swap %]]: yes
+routers.cgi*Options[[% fqdn %]-[% rrdfiles.hosts.swap %]]: nopercent nomax
+

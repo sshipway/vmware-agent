@@ -1,0 +1,159 @@
+# VMWare host checks
+
+[% DEFAULT notifytime = '24x7' %]
+[% DEFAULT contactgroups = 'vmware-admins' %]
+[% DEFAULT servicegroup = 'vmware' %]
+[% SET freshness = config.global.frequency * 2 %]
+[% SET attempts = 1 %]
+
+define host {
+    host_name               [% name %]
+    alias                   VMware host [% name %]
+    address                 [% ip %]
+    max_check_attempts      2
+    check_period            24x7
+    check_command           check-host-alive
+  [% IF contactgroups %]
+    contact_groups          [% contactgroups %]
+  [% END %]
+    notifications_enabled   1
+    process_perf_data       0
+    retain_status_information 1
+    notification_period     24x7
+    notification_interval   120
+    check_interval          5
+    active_checks_enabled   1
+    passive_checks_enabled  1
+    max_check_attempts      2
+    notification_options    d,u,r
+    hostgroups              vmware,vmware_host
+  [% IF cluster %]
+    _vmcluster              [% cluster %]
+  [% END %]
+  [% IF datacenter %]
+    _vmdatacenter           [% datacenter %]
+    parents                 [% datacenter %]
+  [% END %]
+  [% IF config.nagios.pnp_host_action_url %]
+    action_url              [% config.nagios.pnp_host_action_url %]
+  [% ELSE %]
+[% IF moid %]
+        action_url       https://[% virtualcentre %]/mob/?moid=[% moid %]
+[% END %]
+  [% END %]
+
+[% IF config.mrtg.routers2_url %]
+        notes_url  [% config.mrtg.routers2_url %]?cfg=.vmware%2Fhost%2F[% fqdn %].cfg&if=[% fqdn %]-resources
+[% END %]
+        icon_image      vmware.gif
+        icon_image_alt  VMWare ESX
+}
+
+[% BLOCK common %]
+    host_name              [% name %]
+    check_command          unknown!Check that vmware agent is running
+    notifications_enabled  1
+    notification_interval  120
+    is_volatile            0
+    check_period           24x7
+    normal_check_interval  10
+    retry_check_interval   5
+    max_check_attempts     [% attempts %]
+    check_freshness        1
+    freshness_threshold    [% freshness %]
+    active_checks_enabled  0
+    passive_checks_enabled 1
+    flap_detection_enabled 0
+    notification_options   w,c,r
+  [% IF servicegroup %]
+    servicegroups          [% servicegroup %]
+  [% END %]
+  [% IF contactgroups %]
+    contact_groups         [% contactgroups %]
+  [% END %] 
+  [% IF notifytime %]
+    notification_period    [% notifytime %]
+  [% END %] 
+[% END %]
+[% BLOCK pnp %]
+  [% IF config.nagios.pnp_host_action_url %]
+    action_url              [% config.nagios.pnp_svc_action_url %]
+  [% END %]
+[% END %]
+
+# Check host/cluster/datacenter status
+define service {
+    service_description  [% servicedesc.hosts.status %]
+[% INCLUDE common %]
+}
+# Check host/cluster/datacenter alarms
+define service {
+    service_description  [% servicedesc.hosts.alarms %]
+[% INCLUDE common %]
+}
+# Check host/cluster/datacenter memory
+define service {
+    service_description  [% servicedesc.hosts.memory %]
+[% INCLUDE common attempts=3 %]
+[% INCLUDE pnp %]
+}
+# Check host/cluster/datacenter CPU
+define service {
+    service_description  [% servicedesc.hosts.cpu %]
+[% INCLUDE common attempts=3 %]
+[% INCLUDE pnp %]
+}
+
+[% IF config.nagios.ntp != 'never' %]
+# Check host time synch
+# This is done by a separate plugin.  Should we do it ourselves, though?
+define service {
+    host_name              [% name %]
+    service_description    [% servicedesc.hosts.time %]
+[% IF config.nagios.ntp %]
+    check_command           unknown!Check that vmware agent is running
+    active_checks_enabled  0
+    passive_checks_enabled 1
+    check_freshness        1
+    freshness_threshold    [% freshness %]
+[% ELSE %]
+	check_command           check_ntp
+    active_checks_enabled   1
+    passive_checks_enabled  0
+    check_freshness         0
+[% END %]
+    check_period           24x7
+    normal_check_interval   30
+    retry_check_interval    5
+    notification_options    u,c
+    max_check_attempts      2
+    notification_interval   120
+    is_volatile             0
+    flap_detection_enabled  0
+  [% IF contactgroups %]
+    contact_groups         [% contactgroups %]
+  [% END %] 
+  [% IF notifytime %]
+    notification_period    [% notifytime %]
+  [% END %] 
+}
+[% END %] 
+
+# Check network
+define service {
+    service_description  [% servicedesc.hosts.net %]
+[% INCLUDE common %]
+[% INCLUDE pnp %]
+}
+# check disk
+define service {
+    service_description  [% servicedesc.hosts.disk %]
+[% INCLUDE common %]
+[% INCLUDE pnp %]
+}
+# Information
+define service {
+    service_description  [% servicedesc.hosts.info %]
+[% INCLUDE common %]
+}
+

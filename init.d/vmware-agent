@@ -1,0 +1,92 @@
+#!/bin/bash
+# vmware-agent  Init script for running the vmware monitoring agent daemon
+#
+# Author:       Steve Shipway <s.shipway@auckland.ac.nz>  
+#
+# chkconfig: - 98 02
+#
+# description: Collects statistics and information from Vmware and sends to
+#              Nagios, MRTG and others
+# processname: vmware-agent.pl
+# config: /etc/vmware-agent.cfg
+
+PATH=/usr/bin:/sbin:/bin:/usr/sbin
+export PATH
+
+[ -f /etc/sysconfig/vmware-agent ] && . /etc/sysconfig/vmware-agent
+CFGFILE=${CFGFILE-/etc/vmware-agent.cfg}
+AGENT=${AGENT-/usr/sbin/vmware-agent.pl}
+lockfile=${LOCKFILE-/var/run/vmware-agent.lck}
+pidfile=${PIDFILE-/var/run/vmware-agent.pid}
+loglevel=${LOGLEVEL-2}
+logfile=${LOGFILE-/var/log/vmware-agent.log}
+
+RETVAL=0
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+pidopts=
+daemonopts=
+if status | grep -q -- '-p' 2>/dev/null; then
+    daemonopts="--pidfile $pidfile"
+    pidopts="-p $pidfile"
+fi
+
+OPTS="--daemon --debug=0 --pidfile=$pidfile --logfile:enable=true --logfile:append=true --logfile:rotate=n --logfile:level=$loglevel --logfile:file=$logfile "
+
+start() {
+    echo -n $"Starting vmware-agent: "
+    daemon $daemonopts $AGENT $CFGFILE ${OPTS} ${EXTRA_OPTS} 
+    RETVAL=$?
+    echo
+    [ $RETVAL = 0 ] && touch ${lockfile}
+    return $RETVAL
+}
+
+stop() {
+    echo -n $"Stopping vmware-agent: "
+    killproc $pidopts $AGENT
+    RETVAL=$?
+    echo
+    [ $RETVAL = 0 ] && rm -f ${lockfile} ${pidfile}
+}
+
+restart() {
+    stop
+    start
+}
+
+rh_status() {
+    status $pidopts $AGENT
+    RETVAL=$?
+    return $RETVAL
+}
+
+rh_status_q() {
+    rh_status >/dev/null 2>&1
+}
+
+case "$1" in
+    start)
+        start
+    ;;
+    stop)
+        stop
+    ;;
+    restart)
+        restart
+    ;;
+    condrestart|try-restart)
+        rh_status_q || exit 0
+        restart
+    ;;
+    status)
+        rh_status
+    ;;
+    *)
+        echo $"Usage: $0 {start|stop|status|restart|condrestart}"
+        exit 1
+esac
+
+exit $RETVAL

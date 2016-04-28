@@ -1,0 +1,339 @@
+# mrtg guest configuration
+
+[% config.mrtg.cfgheader %]
+
+[% IF config.mrtg.guest_included %]
+# This is intended to be included by the main cfg file for this guest
+
+[% ELSE %]
+routers.cgi*ShortDesc: [% name %]
+routers.cgi*Description: [% fqdn %]
+[% IF this.guest.guestFamily == 'windowsGuest' %]
+routers.cgi*Icon: windows-sm.gif
+[% ELSIF this.guest.guestFamily == 'linuxGuest' %]
+routers.cgi*Icon: linux-sm.gif
+[% ELSE %]
+routers.cgi*Icon: server-sm.gif
+[% END %]
+[% END %]
+# if guest included
+
+routers.cgi*Mode[_]: generic
+[% IF config.mrtg.thresholds %]
+ThreshDir: [% config.mrtg.thresholds %]
+ThreshProgI[_]: /bin/true
+ThreshProgO[_]: /bin/true
+[% END %]
+
+# Resource
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Target[[% fqdn %]-[% rrdfiles.guests.resources %]]: dummy
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Title[[% fqdn %]-[% rrdfiles.guests.resources %]]: [% name %] Resource Usage
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]MaxBytes[[% fqdn %]-[% rrdfiles.guests.resources %]]: 100
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]PageTop[[% fqdn %]-[% rrdfiles.guests.resources %]]: null
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]LegendI[[% fqdn %]-[% rrdfiles.guests.resources %]]: cpu:
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]LegendO[[% fqdn %]-[% rrdfiles.guests.resources %]]: mem:
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Options[[% fqdn %]-[% rrdfiles.guests.resources %]]: gauge growright
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Ylegend[[% fqdn %]-[% rrdfiles.guests.resources %]]: percent
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]ShortLegend[[% fqdn %]-[% rrdfiles.guests.resources %]]: %
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend1[[% fqdn %]-[% rrdfiles.guests.resources %]]: CPU utilisation
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend2[[% fqdn %]-[% rrdfiles.guests.resources %]]: Memory utilisation
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend3[[% fqdn %]-[% rrdfiles.guests.resources %]]: Peak CPU utilisation
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend4[[% fqdn %]-[% rrdfiles.guests.resources %]]: Peak memory utilisation
+routers.cgi*ShortDesc[[% fqdn %]-[% rrdfiles.guests.resources %]]: VM: Resources
+routers.cgi*Options[[% fqdn %]-[% rrdfiles.guests.resources %]]: fixunit nototal nopercent
+routers.cgi*Icon[[% fqdn %]-[% rrdfiles.guests.resources %]]: chip-sm.gif
+routers.cgi*InMenu[[% fqdn %]-[% rrdfiles.guests.resources %]]: yes
+routers.cgi*InCompact[[% fqdn %]-[% rrdfiles.guests.resources %]]: yes
+routers.cgi*InSummary[[% fqdn %]-[% rrdfiles.guests.resources %]]: yes
+[% IF config.mrtg.thresholds %]
+routers.cgi*ThreshMaxI[[% fqdn %]-[% rrdfiles.guests.resources %]]: [% config.nagios.thresh_cpu_crit %]
+routers.cgi*ThreshMaxO[[% fqdn %]-[% rrdfiles.guests.resources %]]: [% config.nagios.thresh_mem_crit %]
+[% END %]
+
+# CPU
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Target[[% fqdn %]-[% rrdfiles.guests.cpu1 %]]: dummy
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Title[[% fqdn %]-[% rrdfiles.guests.cpu1 %]]: [% name %] CPU Usage
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]MaxBytes[[% fqdn %]-[% rrdfiles.guests.cpu1 %]]: 100
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]PageTop[[% fqdn %]-[% rrdfiles.guests.cpu1 %]]: null
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]LegendI[[% fqdn %]-[% rrdfiles.guests.cpu1 %]]: used :
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]LegendO[[% fqdn %]-[% rrdfiles.guests.cpu1 %]]: ready:
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Options[[% fqdn %]-[% rrdfiles.guests.cpu1 %]]: gauge growright
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Ylegend[[% fqdn %]-[% rrdfiles.guests.cpu1 %]]: percent
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]ShortLegend[[% fqdn %]-[% rrdfiles.guests.cpu1 %]]: %
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend1[[% fqdn %]-[% rrdfiles.guests.cpu1 %]]: Used time
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend2[[% fqdn %]-[% rrdfiles.guests.cpu1 %]]: Ready time
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend3[[% fqdn %]-[% rrdfiles.guests.cpu1 %]]: Peak used
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend4[[% fqdn %]-[% rrdfiles.guests.cpu1 %]]: Peak ready
+routers.cgi*ShortDesc[[% fqdn %]-[% rrdfiles.guests.cpu1 %]]: VM: CPU (u/r)
+routers.cgi*Options[[% fqdn %]-[% rrdfiles.guests.cpu1 %]]: fixunit nototal nopercent
+routers.cgi*Icon[[% fqdn %]-[% rrdfiles.guests.cpu1 %]]: chip-sm.gif
+routers.cgi*InMenu[[% fqdn %]-[% rrdfiles.guests.cpu1 %]]: no
+routers.cgi*InCompact[[% fqdn %]-[% rrdfiles.guests.cpu1 %]]: yes
+routers.cgi*InSummary[[% fqdn %]-[% rrdfiles.guests.cpu1 %]]: no
+routers.cgi*Graph[[% fqdn %]-[% rrdfiles.guests.cpu1 %]]: [% fqdn %]-[% rrdfiles.guests.cpu %] total nogroup
+[% IF config.mrtg.thresholds %]
+routers.cgi*ThreshMaxI[[% fqdn %]-[% rrdfiles.guests.cpu1 %]]: [% config.nagios.thresh_cpu_crit %]
+routers.cgi*ThreshMaxO[[% fqdn %]-[% rrdfiles.guests.cpu1 %]]: [% config.nagios.thresh_rdy_crit %]
+[% END %]
+
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Target[[% fqdn %]-[% rrdfiles.guests.cpu2 %]]: dummy
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Title[[% fqdn %]-[% rrdfiles.guests.cpu2 %]]: [% name %] CPU Usage
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]MaxBytes[[% fqdn %]-[% rrdfiles.guests.cpu2 %]]: 100
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]PageTop[[% fqdn %]-[% rrdfiles.guests.cpu2 %]]: null
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]LegendI[[% fqdn %]-[% rrdfiles.guests.cpu2 %]]: sys  :
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]LegendO[[% fqdn %]-[% rrdfiles.guests.cpu2 %]]: wait :
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Options[[% fqdn %]-[% rrdfiles.guests.cpu2 %]]: gauge growright
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Ylegend[[% fqdn %]-[% rrdfiles.guests.cpu2 %]]: percent
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]ShortLegend[[% fqdn %]-[% rrdfiles.guests.cpu2 %]]: %
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend1[[% fqdn %]-[% rrdfiles.guests.cpu2 %]]: System time
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend2[[% fqdn %]-[% rrdfiles.guests.cpu2 %]]: Wait time
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend3[[% fqdn %]-[% rrdfiles.guests.cpu2 %]]: Peak system
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend4[[% fqdn %]-[% rrdfiles.guests.cpu2 %]]: Peak wait
+routers.cgi*ShortDesc[[% fqdn %]-[% rrdfiles.guests.cpu2 %]]: VM: CPU (s/w)
+routers.cgi*Options[[% fqdn %]-[% rrdfiles.guests.cpu2 %]]: fixunit nototal nopercent noo
+routers.cgi*Icon[[% fqdn %]-[% rrdfiles.guests.cpu2 %]]: chip-sm.gif
+routers.cgi*InMenu[[% fqdn %]-[% rrdfiles.guests.cpu2 %]]: no
+routers.cgi*InCompact[[% fqdn %]-[% rrdfiles.guests.cpu2 %]]: yes
+routers.cgi*InSummary[[% fqdn %]-[% rrdfiles.guests.cpu2 %]]: no
+routers.cgi*Graph[[% fqdn %]-[% rrdfiles.guests.cpu2 %]]: [% fqdn %]-[% rrdfiles.guests.cpu %]
+
+routers.cgi*Title[[% fqdn %]-[% rrdfiles.guests.cpu %]]: [% name %] Virtual CPU usage
+routers.cgi*ShortDesc[[% fqdn %]-[% rrdfiles.guests.cpu %]]: VM: CPU
+routers.cgi*Icon[[% fqdn %]-[% rrdfiles.guests.cpu %]]: chip-sm.gif
+routers.cgi*InSummary[[% fqdn %]-[% rrdfiles.guests.cpu %]]: yes
+routers.cgi*InMenu[[% fqdn %]-[% rrdfiles.guests.cpu %]]: yes
+routers.cgi*GraphStyle[[% fqdn %]-[% rrdfiles.guests.cpu %]]: stack
+routers.cgi*Legend1[[% fqdn %]-[% rrdfiles.guests.cpu %]]: CPU time consumed
+routers.cgi*Legend1T[[% fqdn %]-[% rrdfiles.guests.cpu %]]: Total CPU time consumed
+routers.cgi*LegendI[[% fqdn %]-[% rrdfiles.guests.cpu %]]: cpu:
+
+
+# Memory
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Target[[% fqdn %]-[% rrdfiles.guests.mem1 %]]: dummy
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Title[[% fqdn %]-[% rrdfiles.guests.mem1 %]]: [% name %] Memory Usage
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]MaxBytes[[% fqdn %]-[% rrdfiles.guests.mem1 %]]: 100
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]PageTop[[% fqdn %]-[% rrdfiles.guests.mem1 %]]: null
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]LegendI[[% fqdn %]-[% rrdfiles.guests.mem1 %]]: pvt:
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]LegendO[[% fqdn %]-[% rrdfiles.guests.mem1 %]]: shr:
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Options[[% fqdn %]-[% rrdfiles.guests.mem1 %]]: gauge growright
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Ylegend[[% fqdn %]-[% rrdfiles.guests.mem1 %]]: percent
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]ShortLegend[[% fqdn %]-[% rrdfiles.guests.mem1 %]]: %
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend1[[% fqdn %]-[% rrdfiles.guests.mem1 %]]: Private memory
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend2[[% fqdn %]-[% rrdfiles.guests.mem1 %]]: Shared memory
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend3[[% fqdn %]-[% rrdfiles.guests.mem1 %]]: Peak private memory
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend4[[% fqdn %]-[% rrdfiles.guests.mem1 %]]: Peak shared memory
+routers.cgi*ShortDesc[[% fqdn %]-[% rrdfiles.guests.mem1 %]]: VM: Memory (pvt/shr)
+routers.cgi*Options[[% fqdn %]-[% rrdfiles.guests.mem1 %]]: fixunit nototal nopercent
+routers.cgi*Icon[[% fqdn %]-[% rrdfiles.guests.mem1 %]]: chip-sm.gif
+routers.cgi*InMenu[[% fqdn %]-[% rrdfiles.guests.mem1 %]]: no
+routers.cgi*InCompact[[% fqdn %]-[% rrdfiles.guests.mem1 %]]: yes
+routers.cgi*InSummary[[% fqdn %]-[% rrdfiles.guests.mem1 %]]: no
+routers.cgi*Graph[[% fqdn %]-[% rrdfiles.guests.mem1 %]]: [% fqdn %]-[% rrdfiles.guests.mem %] total nogroup
+
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Target[[% fqdn %]-[% rrdfiles.guests.mem2 %]]: dummy
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Title[[% fqdn %]-[% rrdfiles.guests.mem2 %]]: [% name %] Memory Usage
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]MaxBytes[[% fqdn %]-[% rrdfiles.guests.mem2 %]]: 100
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]PageTop[[% fqdn %]-[% rrdfiles.guests.mem2 %]]: null
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]LegendI[[% fqdn %]-[% rrdfiles.guests.mem2 %]]: bal:
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]LegendO[[% fqdn %]-[% rrdfiles.guests.mem2 %]]: swp:
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Options[[% fqdn %]-[% rrdfiles.guests.mem2 %]]: gauge growright
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Ylegend[[% fqdn %]-[% rrdfiles.guests.mem2 %]]: percent
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]ShortLegend[[% fqdn %]-[% rrdfiles.guests.mem2 %]]: %
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend1[[% fqdn %]-[% rrdfiles.guests.mem2 %]]: Balloon memory
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend2[[% fqdn %]-[% rrdfiles.guests.mem2 %]]: Swapped memory
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend3[[% fqdn %]-[% rrdfiles.guests.mem2 %]]: Peak balloon memory
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend4[[% fqdn %]-[% rrdfiles.guests.mem2 %]]: Peak swapped memory
+routers.cgi*ShortDesc[[% fqdn %]-[% rrdfiles.guests.mem2 %]]: VM: Memory (bal/swp)
+routers.cgi*Options[[% fqdn %]-[% rrdfiles.guests.mem2 %]]: fixunit nototal nopercent
+routers.cgi*Icon[[% fqdn %]-[% rrdfiles.guests.mem2 %]]: chip-sm.gif
+routers.cgi*InMenu[[% fqdn %]-[% rrdfiles.guests.mem2 %]]: no
+routers.cgi*InCompact[[% fqdn %]-[% rrdfiles.guests.mem2 %]]: yes
+routers.cgi*InSummary[[% fqdn %]-[% rrdfiles.guests.mem2 %]]: no
+routers.cgi*Graph[[% fqdn %]-[% rrdfiles.guests.mem2 %]]: [% fqdn %]-[% rrdfiles.guests.mem %]
+[% IF config.mrtg.thresholds %]
+routers.cgi*ThreshMaxI[[% fqdn %]-[% rrdfiles.guests.mem2 %]]: [% config.nagios.thresh_bal_crit %]
+routers.cgi*ThreshMaxO[[% fqdn %]-[% rrdfiles.guests.mem2 %]]: [% config.nagios.thresh_swp_crit %]
+[% END %]
+
+# Combined
+routers.cgi*Desc[[% fqdn %]-[% rrdfiles.guests.mem %]]: [% name %] Memory Usage
+routers.cgi*ShortDesc[[% fqdn %]-[% rrdfiles.guests.mem %]]: VM: Memory
+routers.cgi*Icon[[% fqdn %]-[% rrdfiles.guests.mem %]]: chip-sm.gif
+routers.cgi*InMenu[[% fqdn %]-[% rrdfiles.guests.mem %]]: yes
+routers.cgi*InSummary[[% fqdn %]-[% rrdfiles.guests.mem %]]: yes
+routers.cgi*GraphStyle[[% fqdn %]-[% rrdfiles.guests.mem %]]: stack
+routers.cgi*LegendTI[[% fqdn %]-[% rrdfiles.guests.mem %]]: Total memory used
+routers.cgi*LegendI[[% fqdn %]-[% rrdfiles.guests.mem %]]: used:
+
+# Active
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Target[[% fqdn %]-[% rrdfiles.guests.memory %]]: dummy
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Title[[% fqdn %]-[% rrdfiles.guests.memory %]]: [% name %] Active Memory
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]MaxBytes[[% fqdn %]-[% rrdfiles.guests.memory %]]: 100
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]PageTop[[% fqdn %]-[% rrdfiles.guests.memory %]]: null
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]LegendI[[% fqdn %]-[% rrdfiles.guests.memory %]]: active:
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]LegendO[[% fqdn %]-[% rrdfiles.guests.memory %]]: memory:
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Options[[% fqdn %]-[% rrdfiles.guests.memory %]]: gauge growright dorelpercent
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Ylegend[[% fqdn %]-[% rrdfiles.guests.memory %]]: percent
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]ShortLegend[[% fqdn %]-[% rrdfiles.guests.memory %]]: %
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend1[[% fqdn %]-[% rrdfiles.guests.memory %]]: Active memory
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend2[[% fqdn %]-[% rrdfiles.guests.memory %]]: Total memory
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend3[[% fqdn %]-[% rrdfiles.guests.memory %]]: Peak active memory
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend4[[% fqdn %]-[% rrdfiles.guests.memory %]]: Peak total memory
+routers.cgi*ShortDesc[[% fqdn %]-[% rrdfiles.guests.memory %]]: VM: Act Mem
+routers.cgi*Options[[% fqdn %]-[% rrdfiles.guests.memory %]]: fixunit nototal nopercent
+routers.cgi*Icon[[% fqdn %]-[% rrdfiles.guests.memory %]]: chip-sm.gif
+routers.cgi*InMenu[[% fqdn %]-[% rrdfiles.guests.memory %]]: yes
+routers.cgi*InCompact[[% fqdn %]-[% rrdfiles.guests.memory %]]: yes
+routers.cgi*InSummary[[% fqdn %]-[% rrdfiles.guests.memory %]]: yes
+
+# Network usage
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Target[[% fqdn %]-[% rrdfiles.guests.network %]]: dummy
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Title[[% fqdn %]-[% rrdfiles.guests.network %]]: [% name %] Network traffic
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]PageTop[[% fqdn %]-[% rrdfiles.guests.network %]]: null
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]MaxBytes[[% fqdn %]-[% rrdfiles.guests.network %]]: 12800000000
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]LegendI[[% fqdn %]-[% rrdfiles.guests.network %]]: total:
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]YLegend[[% fqdn %]-[% rrdfiles.guests.network %]]: bits/sec
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Options[[% fqdn %]-[% rrdfiles.guests.network %]]: gauge growright bits noo
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]ShortLegend[[% fqdn %]-[% rrdfiles.guests.network %]]: b/s
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend1[[% fqdn %]-[% rrdfiles.guests.network %]]: Traffic
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend3[[% fqdn %]-[% rrdfiles.guests.network %]]: Peak Traffic
+routers.cgi*ShortDesc[[% fqdn %]-[% rrdfiles.guests.network %]]: VM: Network
+routers.cgi*Icon[[% fqdn %]-[% rrdfiles.guests.network %]]: interface-sm.gif
+routers.cgi*InMenu[[% fqdn %]-[% rrdfiles.guests.network %]]: yes
+routers.cgi*InSummary[[% fqdn %]-[% rrdfiles.guests.network %]]: yes
+routers.cgi*Options[[% fqdn %]-[% rrdfiles.guests.network %]]: nopercent nomax
+
+[% IF config.guests.network %]
+# Individual network interfaces
+[% FOREACH iface IN interfaces %]
+# tx/rx
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Target[[% fqdn %]-[% rrdfiles.guests.network %]-[% iface %]]: dummy
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Title[[% fqdn %]-[% rrdfiles.guests.network %]-[% iface %]]: [% desc.$iface %] Traffic
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]PageTop[[% fqdn %]-[% rrdfiles.guests.network %]-[% iface %]]: null
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]MaxBytes[[% fqdn %]-[% rrdfiles.guests.network %]-[% iface %]]: 12800000000
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]LegendI[[% fqdn %]-[% rrdfiles.guests.network %]-[% iface %]]: in :
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]LegendO[[% fqdn %]-[% rrdfiles.guests.network %]-[% iface %]]: out:
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]YLegend[[% fqdn %]-[% rrdfiles.guests.network %]-[% iface %]]: bits/sec
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Options[[% fqdn %]-[% rrdfiles.guests.network %]-[% iface %]]: gauge growright bits
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]ShortLegend[[% fqdn %]-[% rrdfiles.guests.network %]-[% iface %]]: b/s
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend1[[% fqdn %]-[% rrdfiles.guests.network %]-[% iface %]]: Incoming
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend2[[% fqdn %]-[% rrdfiles.guests.network %]-[% iface %]]: Outgoing
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend3[[% fqdn %]-[% rrdfiles.guests.network %]-[% iface %]]: Peak Incoming
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend4[[% fqdn %]-[% rrdfiles.guests.network %]-[% iface %]]: Peak Outgoing
+routers.cgi*Graph[[% fqdn %]-[% rrdfiles.guests.network %]-[% iface %]]: [% name %]-network noaverage nototal
+routers.cgi*InMenu[[% fqdn %]-[% rrdfiles.guests.network %]-[% iface %]]: no
+routers.cgi*InSummary[[% fqdn %]-[% rrdfiles.guests.network %]-[% iface %]]: no
+routers.cgi*InCompact[[% fqdn %]-[% rrdfiles.guests.network %]-[% iface %]]: no
+routers.cgi*Options[[% fqdn %]-[% rrdfiles.guests.network %]-[% iface %]]: nopercent nomax
+[% END %] 
+[% IF interfaces %]
+# interface tx/rx summary - mirror graph
+routers.cgi*Title[[% name %]-network]: Network Interfaces
+routers.cgi*ShortDesc[[% name %]-network]: VM: Interfaces
+routers.cgi*GraphStyle[[% name %]-network]: mirror
+routers.cgi*InMenu[[% name %]-network]: yes
+routers.cgi*InSummary[[% name %]-network]: yes
+routers.cgi*Icon[[% name %]-network]: interface-sm.gif
+[% END %] 
+[% END %] 
+
+# Disk usage
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Target[[% fqdn %]-[% rrdfiles.guests.disk %]]: dummy
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Title[[% fqdn %]-[% rrdfiles.guests.disk %]]: [% name %] Disk Activity
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]PageTop[[% fqdn %]-[% rrdfiles.guests.disk %]]: null
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]MaxBytes[[% fqdn %]-[% rrdfiles.guests.disk %]]: 12800000000
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]LegendI[[% fqdn %]-[% rrdfiles.guests.disk %]]: total:
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]YLegend[[% fqdn %]-[% rrdfiles.guests.disk %]]: bytes/sec
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Options[[% fqdn %]-[% rrdfiles.guests.disk %]]: gauge growright noo
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]ShortLegend[[% fqdn %]-[% rrdfiles.guests.disk %]]: B/s
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend1[[% fqdn %]-[% rrdfiles.guests.disk %]]: Usage
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend3[[% fqdn %]-[% rrdfiles.guests.disk %]]: Peak Usage
+routers.cgi*ShortDesc[[% fqdn %]-[% rrdfiles.guests.disk %]]: VM: vDisk
+routers.cgi*Icon[[% fqdn %]-[% rrdfiles.guests.disk %]]: disk-sm.gif
+routers.cgi*InMenu[[% fqdn %]-[% rrdfiles.guests.disk %]]: yes
+routers.cgi*InSummary[[% fqdn %]-[% rrdfiles.guests.disk %]]: yes
+routers.cgi*Options[[% fqdn %]-[% rrdfiles.guests.disk %]]: nopercent nomax
+
+[% IF config.guests.datastores %]
+# Individual disks
+[% FOREACH dsk IN disks %]
+# I/O
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Target[[% fqdn %]-[% rrdfiles.guests.disk %]-[% dsk %]]: dummy
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Title[[% fqdn %]-[% rrdfiles.guests.disk %]-[% dsk %]]: [% desc.$dsk %] Usage
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]PageTop[[% fqdn %]-[% rrdfiles.guests.disk %]-[% dsk %]]: null
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]MaxBytes[[% fqdn %]-[% rrdfiles.guests.disk %]-[% dsk %]]: 12800000000
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]LegendI[[% fqdn %]-[% rrdfiles.guests.disk %]-[% dsk %]]: read :
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]LegendO[[% fqdn %]-[% rrdfiles.guests.disk %]-[% dsk %]]: write:
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]YLegend[[% fqdn %]-[% rrdfiles.guests.disk %]-[% dsk %]]: bytes/sec
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Options[[% fqdn %]-[% rrdfiles.guests.disk %]-[% dsk %]]: gauge growright 
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]ShortLegend[[% fqdn %]-[% rrdfiles.guests.disk %]-[% dsk %]]: B/s
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend1[[% fqdn %]-[% rrdfiles.guests.disk %]-[% dsk %]]: Read    
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend2[[% fqdn %]-[% rrdfiles.guests.disk %]-[% dsk %]]: Write   
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend3[[% fqdn %]-[% rrdfiles.guests.disk %]-[% dsk %]]: Peak Read    
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend4[[% fqdn %]-[% rrdfiles.guests.disk %]-[% dsk %]]: Peak Write    
+routers.cgi*Graph[[% fqdn %]-[% rrdfiles.guests.disk %]-[% dsk %]]: [% name %]-disk noaverage total
+routers.cgi*ShortDesc[[% fqdn %]-[% rrdfiles.guests.disk %]-[% dsk %]]: VM: Disk: [% desc.$dsk %]
+routers.cgi*InMenu[[% fqdn %]-[% rrdfiles.guests.disk %]-[% dsk %]]: no
+routers.cgi*InSummary[[% fqdn %]-[% rrdfiles.guests.disk %]-[% dsk %]]: no
+routers.cgi*InCompact[[% fqdn %]-[% rrdfiles.guests.disk %]-[% dsk %]]: no
+routers.cgi*Options[[% fqdn %]-[% rrdfiles.guests.disk %]-[% dsk %]]: nopercent nomax
+# Latency: threshold config.nagios.thresh_latency_crit
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Target[[% fqdn %]-[% rrdfiles.guests.latency %]-[% dsk %]]: dummy
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Title[[% fqdn %]-[% rrdfiles.guests.latency %]-[% dsk %]]: [% desc.$dsk %] Latency
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]PageTop[[% fqdn %]-[% rrdfiles.guests.latency %]-[% dsk %]]: null
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]MaxBytes[[% fqdn %]-[% rrdfiles.guests.latency %]-[% dsk %]]: 12800000000
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]LegendI[[% fqdn %]-[% rrdfiles.guests.latency %]-[% dsk %]]: read :
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]LegendO[[% fqdn %]-[% rrdfiles.guests.latency %]-[% dsk %]]: write:
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]YLegend[[% fqdn %]-[% rrdfiles.guests.latency %]-[% dsk %]]: seconds
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Options[[% fqdn %]-[% rrdfiles.guests.latency %]-[% dsk %]]: gauge growright 
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]ShortLegend[[% fqdn %]-[% rrdfiles.guests.latency %]-[% dsk %]]: s
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend1[[% fqdn %]-[% rrdfiles.guests.latency %]-[% dsk %]]: Read    
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend2[[% fqdn %]-[% rrdfiles.guests.latency %]-[% dsk %]]: Write   
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend3[[% fqdn %]-[% rrdfiles.guests.latency %]-[% dsk %]]: Peak Read    
+[% IF config.mrtg.guest_included %]routers.cgi*[% END %]Legend4[[% fqdn %]-[% rrdfiles.guests.latency %]-[% dsk %]]: Peak Write    
+routers.cgi*Graph[[% fqdn %]-[% rrdfiles.guests.latency %]-[% dsk %]]: [% name %]-latency noaverage nototal
+routers.cgi*ShortDesc[[% fqdn %]-[% rrdfiles.guests.latency %]-[% dsk %]]: VM: Latency: [% desc.$dsk %]
+routers.cgi*InMenu[[% fqdn %]-[% rrdfiles.guests.latency %]-[% dsk %]]: no
+routers.cgi*InSummary[[% fqdn %]-[% rrdfiles.guests.latency %]-[% dsk %]]: no
+routers.cgi*InCompact[[% fqdn %]-[% rrdfiles.guests.latency %]-[% dsk %]]: no
+routers.cgi*Options[[% fqdn %]-[% rrdfiles.guests.latency %]-[% dsk %]]: nopercent nomax
+[% IF config.mrtg.thresholds %]
+[% latency_crit = config.nagios.thresh_latency_crit / 1000 %]
+routers.cgi*ThreshMaxI[[% fqdn %]-[% rrdfiles.guests.latency %]-[% dsk %]]: [% latency_crit %]
+routers.cgi*ThreshMaxO[[% fqdn %]-[% rrdfiles.guests.latency %]-[% dsk %]]: [% latency_crit %]
+[% END %] 
+
+[% END %] 
+[% IF disks %]
+# I/O summary - mirror graph
+routers.cgi*Title[[% name %]-disk]: Disk Activity
+routers.cgi*ShortDesc[[% name %]-disk]: VM: vDisk: Detail
+routers.cgi*GraphStyle[[% name %]-disk]: mirror
+routers.cgi*InMenu[[% name %]-disk]: yes
+routers.cgi*InSummary[[% name %]-disk]: yes
+routers.cgi*Icon[[% name %]-disk]: disk-sm.gif
+# Latency summary
+routers.cgi*Title[[% name %]-latency]: Disk Latency
+routers.cgi*ShortDesc[[% name %]-latency]: VM: vDisk: Latency
+routers.cgi*GraphStyle[[% name %]-latency]: mirror
+routers.cgi*InMenu[[% name %]-latency]: yes
+routers.cgi*InSummary[[% name %]-latency]: yes
+routers.cgi*Icon[[% name %]-latency]: clock-sm.gif
+[% IF config.mrtg.thresholds %]
+[% latency_crit = config.nagios.thresh_latency_crit / 1000 %]
+routers.cgi*ThreshMaxI[[% name %]-latency]: [% latency_crit %]
+routers.cgi*ThreshMaxO[[% name %]-latency]: [% latency_crit %]
+[% END %] 
+[% END %]  #disks
+
+[% END %]  # datastores
+
+[% IF config.mrtg.base_dir %]
+[% IF host and config.global.hosts %]
+routers.cgi*Link: "ESX Host ([% host %])" [% config.mrtg.cfg_host.remove( config.mrtg.base_dir _ '/' ) %]/[% host %].cfg [% host %]-[% rrdfiles.hosts.resources %] vmware-sm.gif
+[% END %]
+[% IF cluster and config.global.clusters %]
+routers.cgi*Link: "Cluster ([% cluster %])" [% config.mrtg.cfg_cluster.remove( config.mrtg.base_dir _ '/' ) %]/[% cluster %].cfg [% cluster %]-[% rrdfiles.clusters.resources %] vmware-sm.gif
+[% END %]
+[% END %]
+
